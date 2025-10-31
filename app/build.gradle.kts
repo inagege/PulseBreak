@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.example.breakreminder"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.breakreminder"
         minSdk = 33
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
     }
@@ -45,6 +45,11 @@ android {
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation(project(":commonLibrary"))
+
+    // Enable Google Play Services for Wear OS
+    implementation("com.google.android.gms:play-services-wearable:18.1.0")
     // -----------------------------------
     // Compose BOM (Bill of Materials)
     // -----------------------------------

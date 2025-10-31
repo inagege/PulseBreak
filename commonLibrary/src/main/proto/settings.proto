@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option java_package = "com.example.commonlibrary";
+option java_multiple_files = true;
+
+message SettingsPreferences {
+    bool is_dark_mode = 1;
+    int32 button_color = 2;
+    int32 button_text_color = 3;
+    string screen_selection = 4;
+}

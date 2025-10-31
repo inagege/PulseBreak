@@ -21,4 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "BreakReminder"
 include(":app")
- 
+include(":companion")
+include(":commonLibrary")

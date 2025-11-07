@@ -2,6 +2,7 @@ package com.example.breakreminder.screens
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -51,13 +52,16 @@ fun AppNavigation(
 
         // HomeScreen
         composable("home_screen") {
+            // Collect state here, in the composable scope
+            val settings by viewModel.settings.collectAsStateWithLifecycle()
+
             HomeScreen(
                 viewModel,
                 onNavigateToSettings = {
                     navController.navigate("settings_screen")
                 },
                 onNavigateToSelection = {
-                    val settings by viewModel.settings
+                    // Use the collected state value in the navigation logic
                     if (settings.screenSelection == "Grid") {
                         navController.navigate("selection_screen")
                     } else {

@@ -20,6 +20,7 @@ import com.google.accompanist.pager.rememberPagerState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.sync.AppSettingsViewModel
 import com.google.accompanist.pager.ExperimentalPagerApi
 
@@ -34,8 +35,8 @@ fun SelectionSwipeScreen(
     onNavigateToCoffee: () -> Unit = {},
     onNavigateToClean: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
-    
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     val activities = listOf(
         ActivityData("Yoga", Icons.Default.SelfImprovement),
         ActivityData("Walk", Icons.Default.DirectionsWalk),

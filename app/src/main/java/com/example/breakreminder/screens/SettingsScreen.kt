@@ -19,6 +19,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.sync.AppSettingsViewModel
 import com.example.commonlibrary.SettingsData
 
@@ -34,7 +35,7 @@ fun SettingsScreen(
     viewModel: AppSettingsViewModel,
     onNavigateBack: (() -> Unit)? = null
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     // Local state for Compose UI
     var localIsDarkMode = settings.isDarkMode

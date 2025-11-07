@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,19 +19,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
 
-// --- 1. NEW: A professional and cohesive color palette ---
-// Using a dedicated object for colors makes them reusable and easy to change.
+// This object can be removed or kept for default/fallback values if needed.
 object AppColors {
-    val primary = Color(0xFF006778)      // A calming dark teal for primary elements
-    val background = Color(0xFFF0F4F5)  // A light, neutral gray for the background
-    val surface = Color.White           // Clean white for card backgrounds
-    val onSurface = Color(0xFF1F1F1F)   // Dark color for primary text
-    val onSurfaceVariant = Color(0xFF5F5F5F) // Lighter gray for secondary text
+    val primary = Color(0xFF006778)
+    val background = Color(0xFFF0F4F5)
+    val surface = Color.White
+    val onSurface = Color(0xFF1F1F1F)
+    val onSurfaceVariant = Color(0xFF5F5F5F)
 }
 
-// --- 2. UPDATED: Data class with more context ---
-// Added a description field to provide more information to the user on the card.
 data class HomeItem(
     val icon: ImageVector,
     val label: String,
@@ -40,9 +40,20 @@ data class HomeItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    viewModel: CompanionSettingsViewModel, // Add ViewModel parameter
     onNavigateToSettings: () -> Unit
 ) {
-    // Updated list of items with the new data class structure.
+    // Collect settings state
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val buttonColor = Color(settings.buttonColor)
+    val isDarkMode = settings.isDarkMode
+
+    // Define colors based on settings
+    val dynamicPrimaryColor = if (isDarkMode) buttonColor else AppColors.primary
+    val dynamicBackgroundColor = if (isDarkMode) Color.DarkGray else AppColors.background
+    val dynamicSurfaceColor = if (isDarkMode) Color.Black else AppColors.surface
+    val dynamicOnSurfaceColor = if (isDarkMode) Color.White else AppColors.onSurface
+
     val homeItems = listOf(
         HomeItem(Icons.Default.Lightbulb, "Light Setup", "Customize your lighting"),
         HomeItem(Icons.Default.Timer, "Break Management", "Manage your break intervals"),
@@ -55,12 +66,12 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("Pulse Break", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AppColors.surface, // Use a clean surface color
-                    titleContentColor = AppColors.primary
+                    containerColor = dynamicSurfaceColor,
+                    titleContentColor = dynamicPrimaryColor
                 )
             )
         },
-        containerColor = AppColors.background // Set the background for the whole screen
+        containerColor = dynamicBackgroundColor
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -72,18 +83,27 @@ fun HomeScreen(
             items(homeItems) { item ->
                 FeatureCard(
                     item = item,
-                    onClick = { onNavigateToSettings() }
+                    surfaceColor = dynamicSurfaceColor,
+                    onSurfaceColor = dynamicOnSurfaceColor,
+                    primaryColor = dynamicPrimaryColor,
+                    onClick = {
+                        // All cards navigate to settings, so this is correct.
+                        if (item.label == "Design Options") {
+                            onNavigateToSettings()
+                        }
+                    }
                 )
             }
         }
     }
 }
 
-// --- 4. NEW: A reusable Card composable for each feature ---
-// This replaces the old HomeQuadrantButton. Cards are a staple of modern UI design.
 @Composable
 fun FeatureCard(
     item: HomeItem,
+    surfaceColor: Color,
+    onSurfaceColor: Color,
+    primaryColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -91,40 +111,37 @@ fun FeatureCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.large, // Nicely rounded corners
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = AppColors.surface // Use the clean surface color
+            containerColor = surfaceColor
         ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 4.dp // Adds a subtle shadow for a sense of depth
-        )
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp) // Ample padding inside the card
+                .padding(16.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp) // Space between icon and text
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Icon(
                 imageVector = item.icon,
                 contentDescription = item.label,
-                modifier = Modifier.size(40.dp), // A more balanced icon size
-                tint = AppColors.primary // Consistent icon color
+                modifier = Modifier.size(40.dp),
+                tint = primaryColor
             )
-            // --- 5. NEW: Improved typography and hierarchy ---
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.label,
-                    color = AppColors.onSurface,
+                    color = onSurfaceColor,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold // Title is bold and larger
+                    fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = item.description,
-                    color = AppColors.onSurfaceVariant,
-                    fontSize = 14.sp, // Subtitle is smaller and lighter
+                    color = AppColors.onSurfaceVariant, // Can also be made dynamic
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Normal
                 )
             }

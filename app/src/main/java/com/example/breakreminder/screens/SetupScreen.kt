@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.sync.AppSettingsViewModel
 
 @Composable
@@ -21,8 +22,9 @@ fun SetupScreen(
     onNavigateToHome: () -> Unit,
     onDeny: () -> Unit
 ) {
-    val settings by viewModel.settings
-    
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier

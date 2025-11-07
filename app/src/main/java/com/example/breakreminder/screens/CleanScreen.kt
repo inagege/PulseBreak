@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.R
 import com.example.breakreminder.sync.AppSettingsViewModel
 import com.skydoves.landscapist.glide.GlideImage
@@ -28,7 +29,8 @@ fun CleaningPromptScreen(
     viewModel: AppSettingsViewModel,
     onStartCleaning: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
@@ -94,7 +96,8 @@ fun CleaningVideoScreen(
     viewModel: AppSettingsViewModel,
     onFinishCleaningVideo: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     // Same logic: 2x8 seconds then a 1s delay
     var playCount by remember { mutableStateOf(0) }
 
@@ -154,7 +157,8 @@ fun CleaningScreen(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.HeartRateReader
 import com.example.breakreminder.sync.AppSettingsViewModel
 
@@ -22,7 +23,8 @@ fun DefaultScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToSettings: () -> Unit,
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     val context = LocalContext.current
     var isActive by remember { mutableStateOf(true) }
 

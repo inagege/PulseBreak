@@ -19,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import com.example.breakreminder.sync.AppSettingsViewModel
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 
 data class YogaScreenData(
@@ -54,7 +55,7 @@ fun YogaScreens(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     var currentIndex by remember { mutableStateOf(0) }
     var remainingTime by remember { mutableStateOf(60) }

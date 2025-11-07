@@ -45,6 +45,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.protobuf:protobuf-kotlin-lite:3.25.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation(project(":commonLibrary"))
 
@@ -93,6 +94,8 @@ dependencies {
     implementation(libs.wear.tooling.preview)
     implementation(libs.material3.android)
     implementation(libs.navigation.compose)
+    implementation(libs.datastore.core.android)
+    implementation(libs.datastore.android)
 
     // -----------------------------------
     // Tests

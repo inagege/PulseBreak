@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.R
 import com.skydoves.landscapist.glide.GlideImage
 import kotlinx.coroutines.delay
@@ -29,7 +30,8 @@ fun CoffeePromptScreen(
     viewModel: AppSettingsViewModel,
     onStartMachine: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier
@@ -95,7 +97,8 @@ fun CoffeeVideoScreen(
     viewModel: AppSettingsViewModel,
     onFinishCoffeeVideo: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     var playCount by remember { mutableStateOf(0) }
     var elapsedTime by remember { mutableStateOf(0L) }
     val totalDuration = 16000L // 16 seconds
@@ -160,7 +163,8 @@ fun CoffeeScreen(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier

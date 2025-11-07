@@ -20,6 +20,7 @@ fun CompanionNavigation (
     ) {
         composable("companion_home") {
             HomeScreen(
+                viewModel = viewModel,
                 onNavigateToSettings = { navController.navigate("companion_settings") }
             )
         }

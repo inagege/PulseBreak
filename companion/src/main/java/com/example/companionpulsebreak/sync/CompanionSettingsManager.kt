@@ -1,98 +1,48 @@
+// app/src/main/java/com/example/breakreminder/sync/SettingsManager.kt
+
 package com.example.companionpulsebreak.sync
 
 import android.content.Context
-import android.util.Log
+import androidx.datastore.core.DataStore
+import androidx.datastore.dataStore
 import com.example.commonlibrary.SettingsData
-import com.google.android.gms.wearable.*
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
+import com.example.commonlibrary.SettingsPreferences
+import com.example.commonlibrary.SettingsSerializer
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
-object CompanionSettingsManager: ICompanionSettingsManager {
+// Extension property to create the DataStore instance
+private val Context.settingsDataStore: DataStore<SettingsPreferences> by dataStore(
+    fileName = "settings.pb",
+    serializer = SettingsSerializer
+)
 
-    private const val SETTINGS_PATH = "/settings"
-    private const val PREFS_NAME = "EISPreferences"
+class SettingsManager(private val context: Context) {
 
-    // Keep reference to the listener so it can be removed if needed
-    private var listener: DataClient.OnDataChangedListener? = null
-
-    /**
-     * Start listening for settings changes sent from the companion app.
-     * The callback [onSettingsChanged] updates your UI/state.
-     */
-
-// ... existing code ...
-    override fun startListening(context: Context, onSettingsChanged: (SettingsData) -> Unit) {
-        if (listener != null) return // Already listening
-
-        GlobalScope.launch {
-            try {
-                val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-                if (nodes.isNotEmpty()) {
-                    listener = DataClient.OnDataChangedListener { dataEvents ->
-                        for (event in dataEvents) {
-                            if (event.type == DataEvent.TYPE_CHANGED &&
-                                event.dataItem.uri.path == SETTINGS_PATH
-                            ) {
-                                val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                                dataMap.getLong("updatedAt", 0L)
-                                val newSettings = SettingsData(
-                                    isDarkMode = dataMap.getBoolean("isDarkMode"),
-                                    buttonColor = dataMap.getInt("buttonColor"),
-                                    buttonTextColor = dataMap.getInt("buttonTextColor"),
-                                    screenSelection = dataMap.getString("screenSelection") ?: "Grid"
-                                )
-                                Log.d("SettingsManager", "Received settings update: $newSettings")
-                                applySettings(context, newSettings)
-                                onSettingsChanged(newSettings)
-                            }
-                        }
-                    }
-                    Wearable.getDataClient(context).addListener(listener!!)
-                        .addOnSuccessListener { Log.d("SettingsManager", "Successfully added listener.") }
-                        .addOnFailureListener { e -> Log.e("SettingsManager", "Failed to add listener.", e) }
-                } else {
-                    Log.w("SettingsManager", "No node connected.")
-                }
-            } catch (e: Exception) {
-                Log.e("SettingsManager", "Failed to check for connection.", e)
-            }
-        }
-    }
-
-    /**
-     * Stop listening for settings changes (optional).
-     */
-    override fun stopListening(context: Context) {
-        listener?.let {
-            Wearable.getDataClient(context).removeListener(it)
-        }
-        listener = null
-    }
-
-    /**
-     * Apply settings to SharedPreferences.
-     */
-    override fun applySettings(context: Context, settings: SettingsData) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean("isDarkMode", settings.isDarkMode)
-            .putInt("buttonColor", settings.buttonColor)
-            .putInt("buttonTextColor", settings.buttonTextColor)
-            .putString("ScreenSelection", settings.screenSelection)
-            .apply()
-    }
-
-    /**
-     * Load current settings from SharedPreferences.
-     */
-    override fun loadSettings(context: Context): SettingsData {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return SettingsData(
-            isDarkMode = prefs.getBoolean("isDarkMode", false),
-            buttonColor = prefs.getInt("buttonColor", 0xFF90EE90.toInt()),
-            buttonTextColor = prefs.getInt("buttonTextColor", 0xFF2F4F4F.toInt()),
-            screenSelection = prefs.getString("ScreenSelection", "Grid") ?: "Grid"
+    val settingsFlow: Flow<SettingsData> = context.settingsDataStore.data.map { prefs ->
+        SettingsData(
+            isDarkMode = prefs.isDarkMode,
+            buttonColor = prefs.buttonColor.takeIf { it != 0 } ?: 0xFF90EE90.toInt(),
+            buttonTextColor = prefs.buttonTextColor.takeIf { it != 0 } ?: 0xFF2F4F4F.toInt(),
+            screenSelection = prefs.screenSelection.ifEmpty { "Grid" }
         )
+    }
+
+    // applySettings ist jetzt eine suspend-Funktion
+    suspend fun applySettings(settings: SettingsData) {
+        context.settingsDataStore.updateData { currentPreferences ->
+            currentPreferences.toBuilder()
+                .setIsDarkMode(settings.isDarkMode)
+                .setButtonColor(settings.buttonColor)
+                .setButtonTextColor(settings.buttonTextColor)
+                .setScreenSelection(settings.screenSelection)
+                .build()
+        }
+    }
+
+    // loadSettings kann für den initialen, blockierenden Ladevorgang verwendet werden
+    suspend fun loadInitialSettings(): SettingsData {
+        return settingsFlow.first()
     }
 }

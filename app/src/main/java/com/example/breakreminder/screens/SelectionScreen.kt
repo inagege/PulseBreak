@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.sync.AppSettingsViewModel
 
 @Composable
@@ -32,9 +33,9 @@ fun SelectionScreen(
 ) {
     val categories = listOf("Yoga", "Walk", "Nap", "Vent", "Coffee", "Clean")
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
 
-    val settings by viewModel.settings
-    
+
     Scaffold { innerPadding ->
         Column(
             modifier = Modifier

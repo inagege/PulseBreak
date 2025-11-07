@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.R
 import com.skydoves.landscapist.glide.GlideImage
 import kotlinx.coroutines.delay
@@ -22,7 +23,8 @@ fun AirStartScreen(
     viewModel: AppSettingsViewModel,
     onStartVent: () -> Unit = {}  // Navigation callback
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
 
     // Local state for Compose UI
     val isDarkMode = settings.isDarkMode
@@ -96,7 +98,8 @@ fun AirScreen(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}  // Callback when venting ends
 ) {
-    val settings by viewModel.settings
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+
     val isDarkMode = settings.isDarkMode
     val buttonColor = Color(settings.buttonColor)
     val buttonTextColor = Color(settings.buttonTextColor)

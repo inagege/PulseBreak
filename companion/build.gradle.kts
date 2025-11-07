@@ -46,6 +46,8 @@ android {
 dependencies {
     implementation(project(":commonLibrary"))
 
+    implementation("com.google.protobuf:protobuf-kotlin-lite:3.25.3")
+
     // Coroutines support for Play Services
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
@@ -69,6 +71,8 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.navigation.compose)
+    implementation(libs.datastore.core.android)
+    implementation(libs.androidx.datastore.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

@@ -12,24 +12,18 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
-
-// This object can be removed or kept for default/fallback values if needed.
-object AppColors {
-    val primary = Color(0xFF006778)
-    val background = Color(0xFFF0F4F5)
-    val surface = Color.White
-    val onSurface = Color(0xFF1F1F1F)
-    val onSurfaceVariant = Color(0xFF5F5F5F)
-}
 
 data class HomeItem(
     val icon: ImageVector,
@@ -40,20 +34,36 @@ data class HomeItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: CompanionSettingsViewModel, // Add ViewModel parameter
+    viewModel: CompanionSettingsViewModel,
     onNavigateToSettings: () -> Unit
 ) {
-    // Collect settings state
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val buttonColor = Color(settings.buttonColor)
+    val buttonTextColor = Color(settings.buttonTextColor)
     val isDarkMode = settings.isDarkMode
 
-    // Define colors based on settings
-    val dynamicPrimaryColor = if (isDarkMode) buttonColor else AppColors.primary
-    val dynamicBackgroundColor = if (isDarkMode) Color.DarkGray else AppColors.background
-    val dynamicSurfaceColor = if (isDarkMode) Color.Black else AppColors.surface
-    val dynamicOnSurfaceColor = if (isDarkMode) Color.White else AppColors.onSurface
+    // Recreate the scheme whenever relevant settings change so Compose recomposes correctly.
+    val dynamicColorScheme = remember(buttonColor, buttonTextColor, isDarkMode) {
+        if (isDarkMode) {
+            darkColorScheme(
+                primary = buttonColor,
+                onPrimary = buttonTextColor,
+                background = Color(0xFF121212),
+                surface = Color(0xFF1E1E1E),
+                onSurface = Color(0xFFECECEC)
+            )
+        } else {
+            lightColorScheme(
+                primary = buttonColor,
+                onPrimary = buttonTextColor,
+                background = Color(0xFFF0F4F5), // match your intended light background
+                surface = Color.White,
+                onSurface = Color(0xFF1F1F1F)
+            )
+        }
+    }
 
+    // keep rest of HomeScreen behavior; using explicit surface/background makes the change visible
     val homeItems = listOf(
         HomeItem(Icons.Default.Lightbulb, "Light Setup", "Customize your lighting"),
         HomeItem(Icons.Default.Timer, "Break Management", "Manage your break intervals"),
@@ -61,38 +71,49 @@ fun HomeScreen(
         HomeItem(Icons.Default.Book, "Manual", "Learn how to use the app")
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Pulse Break", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = dynamicSurfaceColor,
-                    titleContentColor = dynamicPrimaryColor
+    val cardShadow: Dp = if (isDarkMode) 8.dp else 4.dp
+
+    MaterialTheme(colorScheme = dynamicColorScheme) {
+        val dynamicPrimaryColor = MaterialTheme.colorScheme.primary
+        val dynamicBackgroundColor = MaterialTheme.colorScheme.background
+        val dynamicSurfaceColor = MaterialTheme.colorScheme.surface
+        val dynamicOnSurfaceColor = MaterialTheme.colorScheme.onSurface
+        val dynamicOnSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Pulse Break", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = dynamicSurfaceColor,
+                        titleContentColor = dynamicPrimaryColor
+                    )
                 )
-            )
-        },
-        containerColor = dynamicBackgroundColor
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(all = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(homeItems) { item ->
-                FeatureCard(
-                    item = item,
-                    surfaceColor = dynamicSurfaceColor,
-                    onSurfaceColor = dynamicOnSurfaceColor,
-                    primaryColor = dynamicPrimaryColor,
-                    onClick = {
-                        // All cards navigate to settings, so this is correct.
-                        if (item.label == "Design Options") {
-                            onNavigateToSettings()
+            },
+            containerColor = dynamicBackgroundColor
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(all = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(homeItems) { item ->
+                    FeatureCard(
+                        item = item,
+                        surfaceColor = dynamicSurfaceColor,
+                        onSurfaceColor = dynamicOnSurfaceColor,
+                        primaryColor = dynamicPrimaryColor,
+                        descriptionColor = dynamicOnSurfaceVariant,
+                        shadowElevation = cardShadow,
+                        onClick = {
+                            if (item.label == "Design Options") {
+                                onNavigateToSettings()
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -104,18 +125,21 @@ fun FeatureCard(
     surfaceColor: Color,
     onSurfaceColor: Color,
     primaryColor: Color,
+    descriptionColor: Color,
+    shadowElevation: Dp = 4.dp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
+            // apply explicit shadow so it's visible in dark mode as well
+            .shadow(elevation = shadowElevation, shape = MaterialTheme.shapes.large)
             .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = surfaceColor
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        // keep card elevation zero because we already applied shadow
+        colors = CardDefaults.cardColors(containerColor = surfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -140,7 +164,7 @@ fun FeatureCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = item.description,
-                    color = AppColors.onSurfaceVariant, // Can also be made dynamic
+                    color = descriptionColor,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Normal
                 )

@@ -35,7 +35,8 @@ data class HomeItem(
 @Composable
 fun HomeScreen(
     viewModel: CompanionSettingsViewModel,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToHue: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val buttonColor = Color(settings.buttonColor)
@@ -108,8 +109,12 @@ fun HomeScreen(
                         descriptionColor = dynamicOnSurfaceVariant,
                         shadowElevation = cardShadow,
                         onClick = {
-                            if (item.label == "Design Options") {
-                                onNavigateToSettings()
+                            when (item.label) {
+                                "Design Options" -> onNavigateToSettings()
+                                "Light Setup" -> onNavigateToHue()
+                                else -> {
+                                    // no-op for preliminary draft
+                                }
                             }
                         }
                     )

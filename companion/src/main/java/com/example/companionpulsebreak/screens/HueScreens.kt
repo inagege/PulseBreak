@@ -9,9 +9,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.companionpulsebreak.sync.HueViewModel
+import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,6 +23,9 @@ fun HueConnectScreen(
     onConnected: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val settingsViewModel: CompanionSettingsViewModel = viewModel()
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+
     val isConnected by hueViewModel.isConnected.collectAsState()
     val bridgeIp by hueViewModel.bridgeIp.collectAsState()
     val discovered by hueViewModel.discovered.collectAsState()
@@ -47,8 +53,10 @@ fun HueConnectScreen(
             modifier = Modifier.size(72.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Philips Hue bridge", style = MaterialTheme.typography.titleLarge)
+        Text("Philips Hue bridge", style = MaterialTheme.typography.titleLarge, color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor))
         Spacer(modifier = Modifier.height(8.dp))
+
+        var manualIp by remember { mutableStateOf("") }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
@@ -61,6 +69,27 @@ fun HueConnectScreen(
                 selectedIp = null
             }) {
                 Text("Clear")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Manual IP entry (useful when discovery fails) - minimal UI
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = manualIp,
+                onValueChange = { manualIp = it },
+                label = { Text("Manual IP") },
+                modifier = Modifier.weight(1f)
+            )
+            Button(onClick = {
+                if (manualIp.isNotBlank()) {
+                    // call pairing directly with the provided IP
+                    hueViewModel.pairWithBridge(manualIp.trim())
+                    selectedIp = manualIp.trim()
+                }
+            }) {
+                Text("Use IP")
             }
         }
 
@@ -123,7 +152,10 @@ fun HueConnectScreen(
         if (isConnected) {
             Text("Already connected to: ${bridgeIp ?: "unknown"}")
             Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onConnected) { Text("Go to controls") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onConnected) { Text("Go to controls") }
+                OutlinedButton(onClick = { hueViewModel.disconnect() }) { Text("Forget bridge") }
+            }
         }
     }
 }
@@ -135,6 +167,9 @@ fun HueControlScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val settingsViewModel: CompanionSettingsViewModel = viewModel()
+    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+
     val bridgeIp by hueViewModel.bridgeIp.collectAsState()
     val hueUser by hueViewModel.hueUsername.collectAsState()
     val groups by hueViewModel.groups.collectAsState()
@@ -153,10 +188,10 @@ fun HueControlScreen(
             .padding(16.dp)
     ) {
         TopAppBar(
-            title = { Text("Hue Controls") },
+            title = { Text("Hue Controls", color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = "Back")
+                    Icon(Icons.Default.Lightbulb, contentDescription = "Back", tint = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor))
                 }
             }
         )

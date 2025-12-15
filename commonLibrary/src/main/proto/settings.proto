@@ -8,4 +8,22 @@ message SettingsPreferences {
     int32 button_color = 2;
     int32 button_text_color = 3;
     string screen_selection = 4;
+
+    // Hue automation settings (optional)
+    HueAutomationSettings hue_automation = 10;
+}
+
+message HueAutomationSettings {
+    repeated string light_ids = 1;    // specific light ids selected
+    repeated string group_ids = 2;    // room or zone ids selected
+
+    int32 brightness = 3;             // 0..100
+    int32 color_argb = 4;             // ARGB color int, optional
+    int32 color_temperature = 5;      // mireds, optional (for white/warmth)
+
+    // New: scene id and color mode (SCENE, CUSTOM_COLOR, CUSTOM_WHITE)
+    string scene_id = 6;
+    string color_mode = 7;
+    // ARGB preview color for the selected scene (not provided by Hue v1 scenes)
+    int32 scene_preview_argb = 8;
 }

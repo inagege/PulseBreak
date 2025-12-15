@@ -84,7 +84,7 @@ fun HomeScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Pulse Break", fontWeight = FontWeight.Bold) },
+                    title = { Text("Pulse Break", fontWeight = FontWeight.Bold, color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor)) },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = dynamicSurfaceColor,
                         titleContentColor = dynamicPrimaryColor

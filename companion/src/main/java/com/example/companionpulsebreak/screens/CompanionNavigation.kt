@@ -7,8 +7,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.ui.platform.LocalContext
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
 import com.example.companionpulsebreak.sync.HueViewModel
+import com.example.companionpulsebreak.sync.SettingsManager
 
 @Composable
 fun CompanionNavigation (
@@ -40,11 +42,20 @@ fun CompanionNavigation (
             // Decide whether to show connect or control screen based on existing connection
             val hueVm: HueViewModel = viewModel()
             val isConnected by hueVm.isConnected.collectAsState()
+            val ctx = LocalContext.current
+            val settingsManager = SettingsManager(ctx)
 
             if (isConnected) {
-                HueControlScreen(
+                HueAutomationHomeScreen(
+                    settingsManager = settingsManager,
                     hueViewModel = hueVm,
-                    onBack = { navController.navigate("companion_home") }
+                    settingsViewModel = viewModel,
+                    onBack = { navController.navigate("companion_home") },
+                    onNoConnection = {
+                        navController.navigate("hue_entry") {
+                            popUpTo("hue_entry") { inclusive = true }
+                        }
+                    }
                 )
             } else {
                 HueConnectScreen(

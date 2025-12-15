@@ -48,6 +48,10 @@ dependencies {
 
     implementation("com.google.protobuf:protobuf-kotlin-lite:3.25.3")
 
+    // OkHttp for Hue bridge networking
+    implementation("com.squareup.okhttp3:okhttp:4.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+
     // Coroutines support for Play Services
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 

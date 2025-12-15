@@ -1,6 +1,5 @@
 package com.example.companionpulsebreak
 
-// Copy logic of EISAPP here
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel

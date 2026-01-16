@@ -60,43 +60,53 @@ class SettingsManager(private val context: Context) {
             screenSelection = prefs.screenSelection.ifEmpty { "Grid" },
             hueAutomation = hue
         )
+        .also {
+            try { android.util.Log.d("SettingsMgr", "Loaded hueAutomation: lights=${it.hueAutomation.lightIds} groups=${it.hueAutomation.groupIds} brightness=${it.hueAutomation.brightness} colorMode=${it.hueAutomation.colorMode}") } catch (_: Exception) {}
+        }
     }
 
     // applySettings ist jetzt eine suspend-Funktion
     suspend fun applySettings(settings: SettingsData) {
-        context.settingsDataStore.updateData { currentPreferences ->
-            val builder = currentPreferences.toBuilder()
-                .setIsDarkMode(settings.isDarkMode)
-                .setButtonColor(settings.buttonColor)
-                .setButtonTextColor(settings.buttonTextColor)
-                .setScreenSelection(settings.screenSelection)
+        try {
+            context.settingsDataStore.updateData { currentPreferences ->
+                val builder = currentPreferences.toBuilder()
+                    .setIsDarkMode(settings.isDarkMode)
+                    .setButtonColor(settings.buttonColor)
+                    .setButtonTextColor(settings.buttonTextColor)
+                    .setScreenSelection(settings.screenSelection)
 
-            // update hue automation
-            val hue = settings.hueAutomation
-            val hueBuilder = com.example.commonlibrary.HueAutomationSettings.newBuilder()
-                .clearLightIds()
-                .clearGroupIds()
-                .addAllLightIds(hue.lightIds)
-                .addAllGroupIds(hue.groupIds)
-                .setBrightness(hue.brightness)
-                .setColorArgb(hue.colorArgb)
-                .setColorTemperature(hue.colorTemperature)
-                .setSceneId(hue.sceneId ?: "")
-                .setColorMode(hue.colorMode.name)
+                // update hue automation
+                val hue = settings.hueAutomation
+                val hueBuilder = com.example.commonlibrary.HueAutomationSettings.newBuilder()
+                    .clearLightIds()
+                    .clearGroupIds()
+                    .addAllLightIds(hue.lightIds)
+                    .addAllGroupIds(hue.groupIds)
+                    .setBrightness(hue.brightness)
+                    .setColorArgb(hue.colorArgb)
+                    .setColorTemperature(hue.colorTemperature)
+                    .setSceneId(hue.sceneId ?: "")
+                    .setColorMode(hue.colorMode.name)
 
-            // set scenePreviewArgb via reflection if available on the builder
-            try {
-                val m = hueBuilder::class.java.getMethod("setScenePreviewArgb", Int::class.javaPrimitiveType)
-                m.invoke(hueBuilder, hue.scenePreviewArgb)
-            } catch (_: Throwable) {
-                // ignore if generated builder doesn't have the method yet
+                // set scenePreviewArgb via reflection if available on the builder
+                try {
+                    val m = hueBuilder::class.java.getMethod("setScenePreviewArgb", Int::class.javaPrimitiveType)
+                    m.invoke(hueBuilder, hue.scenePreviewArgb)
+                } catch (_: Throwable) {
+                    // ignore if generated builder doesn't have the method yet
+                }
+
+                // build the message and set it explicitly to avoid overload ambiguity
+                val hueMessage = hueBuilder.build()
+                // Debug: log what hueAutomation will be persisted
+                try { android.util.Log.d("SettingsMgr", "Persisting hueAutomation: lights=${hue.lightIds} groups=${hue.groupIds} brightness=${hue.brightness} colorMode=${hue.colorMode}") } catch (_: Exception) {}
+                builder.setHueAutomation(hueMessage)
+
+                builder.build()
             }
-
-            // build the message and set it explicitly to avoid overload ambiguity
-            val hueMessage = hueBuilder.build()
-            builder.setHueAutomation(hueMessage)
-
-            builder.build()
+        } catch (e: Exception) {
+            try { android.util.Log.w("SettingsMgr", "applySettings failed: ${e.message}", e) } catch (_: Exception) {}
+            throw e
         }
     }
 

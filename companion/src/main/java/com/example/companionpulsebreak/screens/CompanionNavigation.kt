@@ -64,14 +64,6 @@ fun CompanionNavigation (
                 )
             }
         }
-
-        composable("hue_control") {
-            val hueVm: HueViewModel = viewModel()
-            HueControlScreen(
-                hueViewModel = hueVm,
-                onBack = { navController.navigate("companion_home") }
-            )
-        }
     }
 
 }

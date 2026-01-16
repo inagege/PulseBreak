@@ -1,72 +1,45 @@
 package com.example.companionpulsebreak.screens
 
-import android.graphics.Color as AndroidColor
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.WbSunny
+import com.example.companionpulsebreak.sync.HueLight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.draw.rotate
-import com.example.commonlibrary.HueColorMode
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.commonlibrary.HueAutomationData
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
-import com.example.companionpulsebreak.sync.HueGroup
-import com.example.companionpulsebreak.sync.HueLight
 import com.example.companionpulsebreak.sync.HueViewModel
 import com.example.companionpulsebreak.sync.SettingsManager
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import com.example.commonlibrary.HueColorMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.roundToInt
-import kotlin.math.sin
-import kotlin.math.sqrt
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.rotate
+import org.json.JSONObject
 
 /**
  * NOTE:
- * This file assumes you can extend HueAutomationData. If HueAutomationData is in a shared module and
- * you cannot edit it yet, you can temporarily keep those extra fields elsewhere – but the UI will be
- * much cleaner and persist correctly if HueAutomationData has these fields:
- *
- * enum class HueColorMode { SCENE, CUSTOM_COLOR, CUSTOM_WHITE }
- * val colorMode: HueColorMode
- * val sceneId: String?
- * val colorArgb: Int
- * val ctMired: Int
- *
- * Also assumes HueLight has supportsColor (Boolean). If you don't have it, add it in your Hue parsing.
+ * This file keeps the high-level HueAutomationHomeScreen and helper card + test runner.
+ * Detailed screens (light selection, brightness, scene/color) were moved to separate files
+ * for clarity: `HueLightSelectionScreens.kt`, `HueBrightnessScreen.kt`, `HueSceneScreens.kt`.
  */
-
-/** --- Optional helper UI model for scene tiles --- */
-private data class SceneUi(val id: String, val name: String, val preview: Color)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,14 +52,46 @@ fun HueAutomationHomeScreen(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
-    var screen by remember { mutableStateOf("home") }
+    var screen by rememberSaveable { mutableStateOf("home") }
     val settingsFlow by remember { mutableStateOf(settingsManager.settingsFlow) }
-    val settingsState by settingsFlow.collectAsState(initial = null)
     var hueSettings by remember { mutableStateOf(HueAutomationData()) }
+    // remember last persisted value to avoid re-writing immediately after load
+    var lastPersisted by remember { mutableStateOf<HueAutomationData?>(null) }
 
-    LaunchedEffect(settingsState) {
-        settingsState?.let { s ->
-            hueSettings = s.hueAutomation
+    // Initialize draft from persisted settings once when the screen is shown so we don't
+    // immediately overwrite persisted settings with the empty draft.
+    LaunchedEffect(settingsFlow) {
+        try {
+            val sd = settingsManager.loadInitialSettings()
+            val persisted = sd.hueAutomation
+            // only seed the draft if nothing was edited yet
+            if (hueSettings.lightIds.isEmpty() && hueSettings.groupIds.isEmpty()) {
+                hueSettings = persisted
+            }
+            lastPersisted = persisted
+            Log.d("HueAutomation", "initial persisted hueAutomation: lights=${persisted.lightIds} groups=${persisted.groupIds}")
+        } catch (e: Exception) {
+            Log.w("HueAutomation", "failed to load initial settings: ${e.message}")
+        }
+    }
+
+    // Persist hueSettings automatically whenever it changes (debounced by lastPersisted comparison).
+    LaunchedEffect(hueSettings) {
+        // Do not persist until we have loaded the initial persisted settings (lastPersisted will be non-null).
+        if (lastPersisted == null) return@LaunchedEffect
+        // If nothing changed compared to the persisted copy, skip the save.
+        if (hueSettings == lastPersisted) return@LaunchedEffect
+
+        // launch a background save; update lastPersisted when done.
+        scope.launch {
+            try {
+                val sd = settingsManager.loadInitialSettings()
+                val merged = sd.copy(hueAutomation = hueSettings)
+                settingsManager.applySettings(merged)
+                lastPersisted = hueSettings
+            } catch (_: Exception) {
+                // ignore save failures for now
+            }
         }
     }
 
@@ -154,9 +159,12 @@ fun HueAutomationHomeScreen(
         val actionTextColor = if (isDarkMode) dynamicPrimaryColor else Color(settings.buttonTextColor)
         val dynamicOnSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
         val cardShadow: Dp = if (isDarkMode) 8.dp else 4.dp
+        // Snackbar host for in-UI feedback (e.g., when Test is pressed but nothing selected)
+        val snackbarHostState = remember { SnackbarHostState() }
 
         Scaffold(
-            modifier = modifier,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+             modifier = modifier,
             topBar = {
                 TopAppBar(
                     title = {
@@ -177,7 +185,7 @@ fun HueAutomationHomeScreen(
                                 if (screen == "home") onBack() else screen = "home"
                             }
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor))
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -200,17 +208,17 @@ fun HueAutomationHomeScreen(
                     ) {
                         val automationItems = listOf(
                             HomeItem(
-                                Icons.Default.ViewModule,
+                                Icons.Filled.ViewModule,
                                 "Rooms & Zones",
                                 "Select which lights this automation controls"
                             ),
                             HomeItem(
-                                Icons.Default.WbSunny,
+                                Icons.Filled.WbSunny,
                                 "Brightness",
                                 "Set the target brightness for the automation"
                             ),
                             HomeItem(
-                                Icons.Default.Palette,
+                                Icons.Filled.Palette,
                                 "Color",
                                 "Choose scene, color, or warmth"
                             )
@@ -241,23 +249,29 @@ fun HueAutomationHomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 OutlinedButton(
-                                    onClick = { runTest(hueSettings, hueViewModel, scope) },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = actionTextColor)
-
-                                ) { Text("Test", color = actionTextColor) }
-
-                                Button(
                                     onClick = {
+                                        Log.d("HueAutomation", "Test button clicked. hueSettings.lightIds=${hueSettings.lightIds}, groupIds=${hueSettings.groupIds}")
+
                                         scope.launch {
-                                            val sd = settingsManager.loadInitialSettings()
-                                            val merged = sd.copy(hueAutomation = hueSettings)
-                                            settingsManager.applySettings(merged)
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) { Text("Save") }
-                            }
+                                            // For Test we must only target the individual lights currently selected in the LightSelection screen.
+                                            val selectedIds = hueSettings.lightIds.toSet()
+                                            Log.d("HueAutomation", "Computed selected lightIds (from draft)=$selectedIds")
+
+                                            if (selectedIds.isEmpty()) {
+                                                // Abort: user didn't select any individual lights in the UI — do not touch groups or default to all.
+                                                Log.d("HueAutomation", "Test aborted: no individual lights selected in LightSelection")
+                                                try { snackbarHostState.showSnackbar("No lights selected for Test") } catch (_: Exception) {}
+                                            } else {
+                                                // Build a settings copy that includes only the selected light ids so runTest targets them
+                                                val useSettings = hueSettings.copy(lightIds = selectedIds.toList())
+                                                runTest(useSettings, hueViewModel, scope, snackbarHostState)
+                                            }
+                                         }
+                                     },
+                                     modifier = Modifier.fillMaxWidth(),
+                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = actionTextColor)
+                                 ) { Text("Test", color = actionTextColor) }
+                             }
                         }
                     }
                 }
@@ -273,12 +287,9 @@ fun HueAutomationHomeScreen(
                             hueViewModel = hueViewModel,
                             initial = hueSettings,
                             onBack = { screen = "home" },
-                            onSave = { newSettings ->
-                                hueSettings = newSettings
-                                screen = "home"
-                            },
                             // Keep the home-level hueSettings draft up-to-date with in-UI selections so Test uses them
                             onSelectionChange = { lightsSet, groupsSet ->
+                                Log.d("HueAutomation", "onSelectionChange fired in home: lights=$lightsSet groups=$groupsSet")
                                 hueSettings = hueSettings.copy(lightIds = lightsSet.toList(), groupIds = groupsSet.toList())
                             },
                              surfaceColor = dynamicSurfaceColor,
@@ -287,7 +298,7 @@ fun HueAutomationHomeScreen(
                              onPrimaryColor = dynamicOnPrimaryColor,
                              actionTextColor = actionTextColor,
                              shadowElevation = cardShadow
-                         )
+                        )
                     }
                 }
 
@@ -301,10 +312,8 @@ fun HueAutomationHomeScreen(
                             settingsManager = settingsManager,
                             initial = hueSettings,
                             onBack = { screen = "home" },
-                            onSave = { newSettings ->
-                                hueSettings = newSettings
-                                screen = "home"
-                            },
+                            // update the home draft immediately so UI elsewhere reflects changes
+                            onDraftChanged = { newSettings -> hueSettings = newSettings },
                             actionTextColor = actionTextColor
                         )
                     }
@@ -316,15 +325,12 @@ fun HueAutomationHomeScreen(
                             .fillMaxSize()
                             .padding(paddingValues)
                     ) {
-                        // UPDATED: pass hueViewModel so we can detect color capability of selected targets
-                        ColorScreen(
+                        HueColorScreen(
+                            settingsManager = settingsManager,
                             initial = hueSettings,
                             hueViewModel = hueViewModel,
                             onBack = { screen = "home" },
-                            onSave = { newSettings ->
-                                hueSettings = newSettings
-                                screen = "home"
-                            },
+                            onDraftChanged = { newSettings -> hueSettings = newSettings },
                             actionTextColor = actionTextColor
                         )
                     }
@@ -334,729 +340,6 @@ fun HueAutomationHomeScreen(
     }
 }
 
-/** ---------------------------------------------------
- * LIGHT SELECTION SCREEN
- * --------------------------------------------------- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LightsSelectionScreen(
-    settingsManager: SettingsManager,
-    hueViewModel: HueViewModel,
-    initial: HueAutomationData,
-    onBack: () -> Unit,
-    onSave: (HueAutomationData) -> Unit,
-    onSelectionChange: (selectedLights: Set<String>, selectedGroups: Set<String>) -> Unit,
-    surfaceColor: Color,
-    onSurfaceColor: Color,
-    primaryColor: Color,
-    onPrimaryColor: Color,
-    actionTextColor: Color,
-    shadowElevation: Dp
-) {
-    val lights by hueViewModel.lights.collectAsState()
-    val groups by hueViewModel.groups.collectAsState()
-    val coroutineScope = rememberCoroutineScope()
-
-    var selectedLights by remember { mutableStateOf(initial.lightIds.toSet()) }
-    var selectedGroups by remember { mutableStateOf(initial.groupIds.toSet()) }
-
-    LaunchedEffect(settingsManager) {
-        try {
-            val sd = settingsManager.loadInitialSettings()
-            val persisted = sd.hueAutomation
-            selectedLights = persisted.lightIds.toSet()
-            selectedGroups = persisted.groupIds.toSet()
-            // notify caller of initial loaded selection so the home draft stays in sync
-            onSelectionChange(selectedLights, selectedGroups)
-        } catch (_: Exception) {
-        }
-    }
-
-    var currentGroupId by remember { mutableStateOf<String?>(null) }
-    val currentGroup = groups.find { it.id == currentGroupId }
-
-    when (currentGroupId) {
-        null -> {
-            // Compute a set of group IDs that should appear visually selected: either the group is selected
-            // explicitly (selectedGroups) or any child light of the group is selected (selectedLights).
-            val visualSelectedGroups = remember(selectedGroups, selectedLights, groups) {
-                val byChild = groups.filter { g -> g.lightIds.any { selectedLights.contains(it) } }.map { it.id }.toSet()
-                selectedGroups + byChild
-            }
-
-            GroupListScreen(
-                groups = groups,
-                selectedGroups = selectedGroups,
-                // selectedLights = selectedLights,
-                visualSelectedGroups = visualSelectedGroups,
-                onClearGroupChildren = { gid ->
-                    // remove all lights of that group from selection
-                    val group = groups.find { it.id == gid }
-                    if (group != null) {
-                        selectedLights = selectedLights - group.lightIds.toSet()
-                        onSelectionChange(selectedLights, selectedGroups)
-                    }
-                },
-                 onToggleGroup = { id, isSelected ->
-                     selectedGroups = if (isSelected) selectedGroups + id else selectedGroups - id
-                     onSelectionChange(selectedLights, selectedGroups)
-                 },
-                onGroupClick = { id -> currentGroupId = id },
-                onSave = {
-                    val newHue = initial.copy(
-                        lightIds = selectedLights.toList(),
-                        groupIds = selectedGroups.toList()
-                    )
-
-                    coroutineScope.launch {
-                        try {
-                            val sd = settingsManager.loadInitialSettings()
-                            val merged = sd.copy(hueAutomation = newHue)
-                            settingsManager.applySettings(merged)
-                        } catch (_: Exception) {
-                        }
-                        onSave(newHue)
-                    }
-                },
-                onBack = onBack,
-                surfaceColor = surfaceColor,
-                onSurfaceColor = onSurfaceColor,
-                primaryColor = primaryColor,
-                onPrimaryColor = onPrimaryColor,
-                actionTextColor = actionTextColor,
-                shadowElevation = shadowElevation
-            )
-        }
-
-        else -> {
-            val groupLights = lights.filter { l ->
-                currentGroup?.lightIds?.contains(l.id) == true
-            }
-
-            GroupLightsScreen(
-                groupName = currentGroup?.name ?: "",
-                lights = groupLights,
-                selectedLights = selectedLights,
-                onToggleLight = { lightId, isSelected ->
-                    selectedLights = if (isSelected) selectedLights + lightId else selectedLights - lightId
-                    onSelectionChange(selectedLights, selectedGroups)
-                },
-                // Save from the group-light view: persist current selections and bubble the new settings up.
-                onSaveLights = {
-                    val newHue = initial.copy(
-                        lightIds = selectedLights.toList(),
-                        groupIds = selectedGroups.toList()
-                    )
-
-                    coroutineScope.launch {
-                        try {
-                            val sd = settingsManager.loadInitialSettings()
-                            val merged = sd.copy(hueAutomation = newHue)
-                            settingsManager.applySettings(merged)
-                        } catch (_: Exception) {
-                        }
-                        // inform the caller that settings changed
-                        onSave(newHue)
-                    }
-
-                    // return to groups list
-                    currentGroupId = null
-                },
-                onBack = { currentGroupId = null },
-                surfaceColor = surfaceColor,
-                onSurfaceColor = onSurfaceColor,
-                primaryColor = primaryColor,
-                onPrimaryColor = onPrimaryColor,
-                actionTextColor = actionTextColor,
-                shadowElevation = shadowElevation
-            )
-        }
-    }
-}
-
-@Composable
-private fun GroupListScreen(
-    groups: List<HueGroup>,
-    selectedGroups: Set<String>,
-    // visualSelectedGroups controls only the visual state of the group's switch. It does NOT change
-    // selection semantics when toggling; toggling still only adds/removes the group's id via onToggleGroup.
-    visualSelectedGroups: Set<String>,
-    // invoked when the user wants to clear all child light selections for a group (toggle-off visual-only case)
-    onClearGroupChildren: (groupId: String) -> Unit,
-    onToggleGroup: (groupId: String, isSelected: Boolean) -> Unit,
-    onGroupClick: (groupId: String) -> Unit,
-    onSave: () -> Unit,
-    onBack: () -> Unit,
-    surfaceColor: Color,
-    onSurfaceColor: Color,
-    primaryColor: Color,
-    onPrimaryColor: Color,
-    actionTextColor: Color,
-    shadowElevation: Dp
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(groups) { g ->
-                // Determine whether the group is actually selected
-                val hasGroupSelected = selectedGroups.contains(g.id)
-                // Visual checked: either the group is selected OR any child lights are selected
-                val checked = hasGroupSelected || visualSelectedGroups.contains(g.id)
-
-                // Build a safe toggle handler: if the group toggle is turned ON -> add group id.
-                // If turned OFF and the group id is present -> remove group id.
-                // If turned OFF but the group id wasn't present (it was only visually ON because of child lights)
-                // -> clear the child light selections instead.
-                val toggleHandler: (Boolean) -> Unit = { newState ->
-                    if (newState) {
-                        onToggleGroup(g.id, true)
-                    } else {
-                        if (hasGroupSelected) {
-                            onToggleGroup(g.id, false)
-                        } else {
-                            onClearGroupChildren(g.id)
-                        }
-                    }
-                }
-
-                GroupRow(
-                    name = g.name,
-                    isSelected = checked,
-                    onClick = { onGroupClick(g.id) },
-                    onToggle = toggleHandler,
-                    surfaceColor = surfaceColor,
-                    onSurfaceColor = onSurfaceColor,
-                    primaryColor = primaryColor,
-                    onPrimaryColor = onPrimaryColor,
-                    shadowElevation = shadowElevation
-                )
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = onSave,
-                modifier = Modifier.weight(1f),
-            ) { Text("Save") }
-
-            OutlinedButton(
-                onClick = onBack,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = actionTextColor)
-            ) { Text("Cancel", color = actionTextColor) }
-        }
-    }
-}
-
-@Composable
-private fun GroupRow(
-    name: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    onToggle: (Boolean) -> Unit,
-    surfaceColor: Color,
-    onSurfaceColor: Color,
-    primaryColor: Color,
-    onPrimaryColor: Color,
-    shadowElevation: Dp
-) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = surfaceColor,
-        tonalElevation = 0.dp,
-        shadowElevation = shadowElevation,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = onSurfaceColor
-                )
-            }
-
-            Switch(
-                checked = isSelected,
-                onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = primaryColor,
-                    checkedTrackColor = primaryColor.copy(alpha = 0.35f),
-                    uncheckedThumbColor = onPrimaryColor,
-                    uncheckedTrackColor = primaryColor.copy(alpha = 0.12f)
-                )
-            )
-        }
-    }
-}
-
-@Composable
-private fun GroupLightsScreen(
-    groupName: String,
-    lights: List<HueLight>,
-    selectedLights: Set<String>,
-    onToggleLight: (lightId: String, isSelected: Boolean) -> Unit,
-    // Persist/save the selection from the group lights screen. This does not change selection logic
-    // immediately; the caller should persist and then navigate back.
-    onSaveLights: () -> Unit,
-    onBack: () -> Unit,
-    surfaceColor: Color,
-    onSurfaceColor: Color,
-    primaryColor: Color,
-    onPrimaryColor: Color,
-    actionTextColor: Color,
-    shadowElevation: Dp
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(text = groupName, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(16.dp))
-
-        Text(text = "Lights", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(8.dp))
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(lights) { l ->
-                val checked = selectedLights.contains(l.id)
-
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = surfaceColor,
-                    tonalElevation = 0.dp,
-                    shadowElevation = shadowElevation,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = l.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.weight(1f),
-                            color = onSurfaceColor
-                        )
-
-                        Switch(
-                            checked = checked,
-                            onCheckedChange = { onToggleLight(l.id, it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = primaryColor,
-                                checkedTrackColor = primaryColor.copy(alpha = 0.35f),
-                                uncheckedThumbColor = onPrimaryColor,
-                                uncheckedTrackColor = primaryColor.copy(alpha = 0.12f)
-                            )
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = onSaveLights,
-                modifier = Modifier.weight(1f)
-            ) { Text("Save") }
-
-            OutlinedButton(
-                onClick = onBack,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = actionTextColor)
-            ) { Text("Cancel", color = actionTextColor) }
-        }
-    }
-}
-
-/** ---------------------------------------------------
- * BRIGHTNESS SCREEN
- * --------------------------------------------------- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun BrightnessScreen(
-    settingsManager: SettingsManager,
-    initial: HueAutomationData,
-    onBack: () -> Unit,
-    onSave: (HueAutomationData) -> Unit,
-    actionTextColor: Color
-) {
-    var brightness by remember { mutableStateOf(initial.brightness) }
-    val coroutineScope = rememberCoroutineScope()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text("Brightness", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(8.dp))
-
-        Text("Brightness: $brightness%", color = MaterialTheme.colorScheme.onSurface)
-        Slider(
-            value = brightness.toFloat(),
-            // round to nearest integer so the right-most position can reach 100
-            onValueChange = { brightness = it.roundToInt() },
-            valueRange = 0f..100f
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    val newHue = initial.copy(brightness = brightness)
-                    coroutineScope.launch {
-                        try {
-                            val sd = settingsManager.loadInitialSettings()
-                            val merged = sd.copy(hueAutomation = newHue)
-                            settingsManager.applySettings(merged)
-                        } catch (_: Exception) {
-                        }
-                        onSave(newHue)
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            ) { Text("Save") }
-
-            OutlinedButton(
-                onClick = onBack,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = actionTextColor)
-            ) { Text("Cancel", color = actionTextColor) }
-        }
-    }
-}
-
-/** ---------------------------------------------------
- * COLOR SCREEN (NEW: Scene gallery + Custom wheel)
- * --------------------------------------------------- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ColorScreen(
-    initial: HueAutomationData,
-    hueViewModel: HueViewModel,
-    onBack: () -> Unit,
-    onSave: (HueAutomationData) -> Unit,
-    actionTextColor: Color
-) {
-    val lights by hueViewModel.lights.collectAsState()
-    val groups by hueViewModel.groups.collectAsState()
-
-    val hasColor = remember(initial.lightIds, initial.groupIds, lights, groups) {
-        selectedTargetsHaveColor(initial, lights, groups)
-    }
-
-    // Prefer bridge-provided scenes when available; fall back to curated presets.
-    val bridgeScenes by hueViewModel.scenes.collectAsState()
-    val fallbackScenes = remember {
-        listOf(
-            SceneUi("bright", "Bright", Color(0xFFFFF1D6)),
-            SceneUi("relax", "Relax", Color(0xFFFFD8A8)),
-            SceneUi("nightlight", "Nightlight", Color(0xFFB8742A)),
-            SceneUi("spring", "Spring", Color(0xFFB6FFB6)),
-            SceneUi("frosty", "Frosty dawn", Color(0xFFCFE8FF)),
-            SceneUi("sunset", "Sunset", Color(0xFFFF9B6A)),
-        )
-    }
-    val scenes = if (bridgeScenes.isNotEmpty()) {
-        bridgeScenes.map { SceneUi(it.id, it.name, Color.White) } // no preview color from bridge; use white
-    } else fallbackScenes
-
-    // Use a "draft" state, then save.
-    var draft by remember { mutableStateOf(initial) }
-
-    // If HueAutomationData doesn't yet have these fields, you'll need to add them.
-    // These accessors compile only if you added: colorMode/sceneId/colorArgb/ctMired to HueAutomationData.
-    // If you haven't added them, search for "draft.colorMode" and replace with your temporary state.
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-
-        Text("Hue scene gallery", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-        Spacer(Modifier.height(12.dp))
-
-        LazyVerticalGrid(
-             columns = GridCells.Fixed(3),
-             verticalArrangement = Arrangement.spacedBy(12.dp),
-             horizontalArrangement = Arrangement.spacedBy(12.dp),
-             modifier = Modifier.weight(1f)
-         ) {
-             item {
-                 val selectedCustom = try { draft.colorMode != HueColorMode.SCENE } catch (_: Throwable) { false }
-                 SceneTile(
-                     title = "Custom",
-                     preview = if (hasColor) Color.White else Color(0xFFFFE7C2),
-                     selected = selectedCustom,
-                     onClick = {
-                         draft = draft.copy(
-                             colorMode = if (hasColor) HueColorMode.CUSTOM_COLOR else HueColorMode.CUSTOM_WHITE,
-                             sceneId = null
-                         )
-                     }
-                 )
-             }
-
-            items(scenes.size) { idx ->
-                val s = scenes[idx]
-                val selected = try { draft.colorMode == HueColorMode.SCENE && draft.sceneId == s.id } catch (_: Throwable) { false }
-                SceneTile(
-                    title = s.name,
-                    preview = s.preview,
-                    selected = selected,
-                    onClick = {
-                        // persist the preview color as ARGB so we can show it later
-                        val previewArgb = try { s.preview.toArgb() } catch (_: Throwable) { 0xFFFFFFFF.toInt() }
-                        draft = draft.copy(colorMode = HueColorMode.SCENE, sceneId = s.id, scenePreviewArgb = previewArgb)
-                    }
-                )
-            }
-         }
-
-
-         // Custom picker area
-         val mode = try { draft.colorMode } catch (_: Throwable) { HueColorMode.SCENE }
-
-        if (mode == HueColorMode.CUSTOM_COLOR && hasColor) {
-             Spacer(Modifier.height(12.dp))
-             HueColorWheel(
-                 colorArgb = try { draft.colorArgb } catch (_: Throwable) { 0xFFFFFFFF.toInt() },
-                 onColorChanged = { argb ->
-                     try {
-                         draft = draft.copy(colorArgb = argb)
-                     } catch (_: Throwable) {
-                     }
-                 }
-             )
-         } else if (mode == HueColorMode.CUSTOM_WHITE || (!hasColor && mode != HueColorMode.SCENE)) {
-             Spacer(Modifier.height(12.dp))
-             WhiteTempWheel(
-                 ctMired = try { draft.colorTemperature } catch (_: Throwable) { 366 },
-                 onCtChanged = { mired ->
-                     try {
-                         draft = draft.copy(colorTemperature = mired)
-                     } catch (_: Throwable) {
-                     }
-                 }
-             )
-         }
-
-         Spacer(Modifier.height(16.dp))
-         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-             Button(
-                 onClick = { onSave(draft) },
-                 modifier = Modifier.weight(1f)
-             ) { Text("Save") }
-
-             OutlinedButton(
-                 onClick = onBack,
-                 modifier = Modifier.weight(1f),
-                 colors = ButtonDefaults.outlinedButtonColors(contentColor = actionTextColor)
-             ) { Text("Cancel", color = actionTextColor) }
-         }
-     }
- }
-
-@Composable
-private fun SceneTile(
-    title: String,
-    preview: Color,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        tonalElevation = if (selected) 4.dp else 0.dp,
-        shadowElevation = if (selected) 6.dp else 0.dp,
-        modifier = Modifier
-            .aspectRatio(1f)
-            .clickable(onClick = onClick)
-    ) {
-        Column(
-            Modifier.fillMaxSize().padding(10.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.extraLarge,
-                color = preview,
-                modifier = Modifier.size(44.dp)
-            ) {}
-
-            Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, color = MaterialTheme.colorScheme.onSurface)
-        }
-    }
-}
-
-/** Hue-like color wheel (for color capable lights) */
-@Composable
-private fun HueColorWheel(
-    colorArgb: Int,
-    onColorChanged: (Int) -> Unit,
-    size: Dp = 280.dp
-) {
-    var px by remember { mutableStateOf(1f) }
-    val radius = px / 2f
-
-    val hsv = remember(colorArgb) {
-        FloatArray(3).also { AndroidColor.colorToHSV(colorArgb, it) }
-    }
-    var hue by remember(colorArgb) { mutableStateOf(hsv[0]) }
-    var sat by remember(colorArgb) { mutableStateOf(hsv[1]) }
-
-    fun updateFromTouch(x: Float, y: Float) {
-        val cx = radius
-        val cy = radius
-        val dx = x - cx
-        val dy = y - cy
-        val r = min(sqrt(dx * dx + dy * dy), radius)
-        val angle = ((atan2(dy, dx) * 180f / Math.PI.toFloat()) + 360f) % 360f
-
-        hue = angle
-        sat = (r / radius).coerceIn(0f, 1f)
-
-        val argb = AndroidColor.HSVToColor(floatArrayOf(hue, sat, 1f))
-        onColorChanged(argb)
-    }
-
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Canvas(
-            modifier = Modifier
-                .size(size)
-                .onGloballyPositioned { px = it.size.width.toFloat() }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { o -> updateFromTouch(o.x, o.y) },
-                        onDrag = { c, _ -> updateFromTouch(c.position.x, c.position.y) }
-                    )
-                }
-        ) {
-            val sweep = Brush.sweepGradient(
-                listOf(
-                    Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red
-                )
-            )
-            drawCircle(brush = sweep, radius = radius)
-
-            // white center (sat->0)
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.White, Color.Transparent),
-                    radius = radius
-                ),
-                radius = radius
-            )
-
-            // thumb
-            val thumbR = sat * radius
-            val theta = hue * (Math.PI.toFloat() / 180f)
-            val tx = radius + thumbR * cos(theta)
-            val ty = radius + thumbR * sin(theta)
-
-            drawCircle(Color.Black.copy(alpha = 0.25f), radius = 18f, center = Offset(tx, ty))
-            drawCircle(Color.White, radius = 14f, center = Offset(tx, ty))
-        }
-    }
-}
-
-/** Warm/cool (ct) wheel for non-color lights */
-@Composable
-private fun WhiteTempWheel(
-    ctMired: Int,
-    onCtChanged: (Int) -> Unit,
-    size: Dp = 280.dp,
-    minMired: Int = 153,
-    maxMired: Int = 500
-) {
-    var px by remember { mutableStateOf(1f) }
-    val radius = px / 2f
-
-    fun yToMired(y: Float): Int {
-        val t = (y / (radius * 2f)).coerceIn(0f, 1f)
-        return (minMired + (maxMired - minMired) * t).toInt()
-    }
-
-    fun miredToY(m: Int): Float {
-        val t = ((m - minMired).toFloat() / (maxMired - minMired).toFloat()).coerceIn(0f, 1f)
-        return (t * radius * 2f)
-    }
-
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Canvas(
-            modifier = Modifier
-                .size(size)
-                .onGloballyPositioned { px = it.size.width.toFloat() }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { o -> onCtChanged(yToMired(o.y)) },
-                        onDrag = { c, _ -> onCtChanged(yToMired(c.position.y)) }
-                    )
-                }
-        ) {
-            val warm = Color(0xFFFFD7A1)
-            val cool = Color(0xFFCFE6FF)
-
-            drawCircle(
-                brush = Brush.verticalGradient(listOf(warm, Color.White, cool)),
-                radius = radius
-            )
-
-            // subtle edge vignette
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.18f)),
-                    radius = radius
-                ),
-                radius = radius
-            )
-
-            val ty = miredToY(ctMired).coerceIn(0f, radius * 2f)
-            val tx = radius
-
-            drawCircle(Color.Black.copy(alpha = 0.25f), radius = 18f, center = Offset(tx, ty))
-            drawCircle(Color.White, radius = 14f, center = Offset(tx, ty))
-        }
-    }
-}
-
-/** Detect if selected targets include any color-capable light */
-private fun selectedTargetsHaveColor(
-    data: HueAutomationData,
-    allLights: List<HueLight>,
-    allGroups: List<HueGroup>
-): Boolean {
-    val groupMemberIds = allGroups
-        .filter { data.groupIds.contains(it.id) }
-        .flatMap { it.lightIds }
-
-    val targetIds = (data.lightIds + groupMemberIds).toSet()
-    val affected = if (targetIds.isEmpty()) allLights else allLights.filter { it.id in targetIds }
-
-    // You must have HueLight.supportsColor for this to work:
-    return affected.any { it.supportsColor }
-}
 
 /** ---------------------------------------------------
  * HOME FEATURE CARD (self-contained helper)
@@ -1081,16 +364,16 @@ private fun FeatureCard(
             .clickable(onClick = onClick)
     ) {
         Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+             Modifier.padding(16.dp),
+             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+         ) {
             Surface(
                 color = primaryColor.copy(alpha = 0.14f),
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.size(44.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(item.icon, contentDescription = null, tint = primaryColor)
+                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Icon(imageVector = item.icon, contentDescription = null, tint = primaryColor)
                 }
             }
 
@@ -1104,7 +387,7 @@ private fun FeatureCard(
 
             Spacer(Modifier.width(8.dp))
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack, // quick chevron-ish; replace if you want
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = null,
                 tint = descriptionColor,
                 modifier = Modifier.rotate(180f)
@@ -1114,142 +397,206 @@ private fun FeatureCard(
 }
 
 /** ---------------------------------------------------
- * TEST RUNNER (update later to support scenes + ct)
+ * TEST RUNNER (kept in this file)
  * --------------------------------------------------- */
-private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, scope: CoroutineScope) {
-    scope.launch {
-        val allLights = hueViewModel.lights.value
-        val allGroups = hueViewModel.groups.value
+private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, scope: CoroutineScope, snackbarHostState: SnackbarHostState) {
+     scope.launch {
+        var _successCount = 0
+        var _failureCount = 0
 
-        val groupMemberIds = allGroups
-            .filter { settings.groupIds.contains(it.id) }
-            .flatMap { it.lightIds }
+        suspend fun safeCall(desc: String, block: suspend () -> Unit) {
+            Log.w("HueAutomation", "safeCall attempt: $desc")
+            try {
+                block()
+                _successCount += 1
+                Log.i("HueAutomation", "safeCall succeeded: $desc")
+            } catch (e: Exception) {
+                _failureCount += 1
+                Log.w("HueAutomation", "safeCall failed: $desc: ${e.message}", e)
+            }
+        }
 
-        val targetIds = (settings.lightIds + groupMemberIds).toSet()
-        // If nothing is selected, do not default to all lights — treat as no-op to avoid surprising behavior.
-        if (targetIds.isEmpty()) {
-            // nothing selected -> don't run the test
+        // Sanity: ensure bridge info present
+        val ip = hueViewModel.bridgeIp.value
+        val user = hueViewModel.hueUsername.value
+        if (ip.isNullOrEmpty() || user.isNullOrEmpty()) {
+            try { snackbarHostState.showSnackbar("Hue not configured: pair with a bridge first") } catch (_: Exception) {}
             return@launch
         }
-        val affected = allLights.filter { targetIds.contains(it.id) }
 
-        // Capture the original on/bri state for ALL lights so we can restore everything even if a scene
-        // recall or other API call touched more lights than we targeted.
-        val originalStates = allLights.associate { it.id to (it.on to it.brightness) }
+        val allLights = hueViewModel.lights.value
 
-        // Use brightness percent (0..100) expected by HueViewModel.setLightBrightnessSuspend
-        val targetBriPercent = settings.brightness.coerceIn(0, 100)
-
-        // Apply target brightness for affected lights immediately (this sets 'on' appropriately as well)
-        // Do this in parallel so lights come on at the requested brightness instead of briefly showing
-        // their previous brightness when turned on separately.
-        try {
-            kotlinx.coroutines.coroutineScope {
-                affected.map { l -> async { try { hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent) } catch (_: Exception) {} } }.awaitAll()
-            }
-        } catch (_: Exception) {}
-
-        // Decide how long the test state should be visible (increase this so the settings are shown longer).
-        val showDurationMs = 3_500L
-
-        when (settings.colorMode) {
-            HueColorMode.CUSTOM_COLOR -> {
-                // apply brightness + color together per affected light to avoid visible flashes
-                try {
-                    kotlinx.coroutines.coroutineScope {
-                        affected.map { l -> async {
-                            try { if (l.supportsColor) hueViewModel.setColorAndBrightnessForLightSuspend(l.id, settings.colorArgb, targetBriPercent) else hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent) } catch (_: Exception) {}
-                        } }.awaitAll()
-                    }
-                } catch (_: Exception) {}
-            }
-            HueColorMode.CUSTOM_WHITE -> {
-                try {
-                    kotlinx.coroutines.coroutineScope {
-                        affected.map { l -> async {
-                            try { if (l.supportsCt) hueViewModel.setCtAndBrightnessForLightSuspend(l.id, settings.colorTemperature, targetBriPercent) else hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent) } catch (_: Exception) {}
-                        } }.awaitAll()
-                    }
-                } catch (_: Exception) {}
-            }
-            HueColorMode.SCENE -> {
-                settings.sceneId?.let { sid ->
-                    if (sid.isNotEmpty()) {
-                        try {
-                            val gid = settings.groupIds.firstOrNull()
-                            if (!gid.isNullOrEmpty()) {
-                                // recall scene for the group (scene will set color & its own brightness)
-                                hueViewModel.recallSceneForGroupSuspend(sid, gid)
-
-                                // give the bridge a short moment to apply the scene
-                                delay(600)
-
-                                // Override the scene brightness for affected lights in parallel (may re-apply same value)
-                                try {
-                                    kotlinx.coroutines.coroutineScope {
-                                        affected.map { l -> async { try { hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent) } catch (_: Exception) {} } }.awaitAll()
-                                    }
-                                } catch (_: Exception) {}
-
-                                // If we stored a preview color for the scene, apply it afterwards per-light in parallel (use combined setter)
-                                val previewArgb = try { settings.scenePreviewArgb } catch (_: Exception) { 0 }
-                                if (previewArgb != 0) {
-                                    delay(200)
-                                    try {
-                                        kotlinx.coroutines.coroutineScope {
-                                            affected.map { l -> async { if (l.supportsColor) try { hueViewModel.setColorAndBrightnessForLightSuspend(l.id, previewArgb, targetBriPercent) } catch (_: Exception) {} } }.awaitAll()
-                                        }
-                                    } catch (_: Exception) {}
-                                }
-                            } else {
-                                // No group selected -> do not recall scene globally. Apply preview per affected light in parallel
-                                val previewArgb = try { settings.scenePreviewArgb } catch (_: Exception) { 0 }
-                                if (previewArgb != 0) {
-                                    try {
-                                        kotlinx.coroutines.coroutineScope {
-                                            affected.map { l -> async {
-                                                try { hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent) } catch (_: Exception) {}
-                                                if (l.supportsColor) try { hueViewModel.setColorForLightSuspend(l.id, previewArgb) } catch (_: Exception) {}
-                                            } }.awaitAll()
-                                        }
-                                    } catch (_: Exception) {}
-                                } else {
-                                    try {
-                                        kotlinx.coroutines.coroutineScope {
-                                            affected.map { l -> async { try { hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent) } catch (_: Exception) {} } }.awaitAll()
-                                        }
-                                    } catch (_: Exception) {}
-                                }
-                             }
-                         } catch (_: Exception) {
-                        }
-                    }
-                }
-            }
+        // For Test, ONLY target the explicit individual lights selected in the LightSelection UI.
+        // The user expects a preview: include selected lights even if they're currently OFF so we can
+        // turn them on for the preview. We'll restore original states afterwards.
+        val affected = computeTestAffectedLights(allLights, settings, requireOn = false)
+        if (affected.isEmpty()) {
+            Log.d("HueAutomation", "runTest aborted: selected lights not present in bridge state - nothing to test")
+            try { snackbarHostState.showSnackbar("No selected lights available to Test") } catch (_: Exception) {}
+            return@launch
         }
 
-        // Debug: log affected ids
-        try { android.util.Log.d("HueAutomation", "runTest affected lights: ${affected.map { it.id }}") } catch (_: Throwable) {}
+        try { snackbarHostState.showSnackbar("Starting Test on ${affected.size} lights") } catch (_: Exception) {}
 
-        // Keep the test state visible for a longer duration
+        // Capture the original ON/brightness state for ALL lights as a fallback, but for full
+        // color/ct/hue restoration we fetch the raw per-light state JSON from the bridge and
+        // restore from that after the preview.
+        val originalStates = allLights.associate { it.id to (it.on to it.brightness) }
+
+        // Fetch raw state objects for all lights in a single request; then pick entries for affected ids.
+        val rawStates = try {
+            val allRaw = try { hueViewModel.fetchAllLightsRawStates() } catch (e: Exception) {
+                Log.w("HueAutomation", "fetchAllLightsRawStates failed: ${e.message}")
+                emptyMap<String, JSONObject?>()
+            }
+            // filter to affected ids only
+            allRaw.filterKeys { k -> affected.any { it.id == k } }
+        } catch (e: Exception) {
+            Log.w("HueAutomation", "failed to prepare raw light states: ${e.message}")
+            emptyMap<String, JSONObject?>()
+        }
+
+        val targetBriPercent = settings.brightness.coerceIn(0, 100)
+
+        // Build a per-light action and run them in a single parallel pass to minimize round trips.
+        val start = System.currentTimeMillis()
+
+        try {
+            // Reduce PUTs by applying group-level actions where safe: if an entire group's member IDs
+            // are included in the affected set, use one PUT for the group. Remaining lights are updated per-light.
+            val affectedIds = affected.map { it.id }.toMutableSet()
+            val groupsAll = hueViewModel.groups.value
+
+            // Greedy pick: prefer larger groups first
+            val candidateGroups = groupsAll.sortedByDescending { it.lightIds.size }
+                .filter { g -> g.lightIds.all { affectedIds.contains(it) } }
+
+            val deferreds = mutableListOf<kotlinx.coroutines.Deferred<Unit>>()
+
+            kotlinx.coroutines.coroutineScope {
+                // Apply group actions for fully-covered groups
+                for (g in candidateGroups) {
+                    // ensure we haven't already removed the group's members
+                    val members = g.lightIds.filter { affectedIds.contains(it) }
+                    if (members.isEmpty()) continue
+
+                    // choose action based on color mode
+                    val d = async {
+                        safeCall("apply preview group ${g.id}") {
+                            when (settings.colorMode) {
+                                HueColorMode.CUSTOM_COLOR -> {
+                                    hueViewModel.setGroupColorAndBrightnessSuspend(g.id, settings.colorArgb, targetBriPercent, immediate = true)
+                                }
+                                HueColorMode.CUSTOM_WHITE -> {
+                                    hueViewModel.setGroupCtAndBrightnessForGroupSuspend(g.id, settings.colorTemperature, targetBriPercent, immediate = true)
+                                }
+                                HueColorMode.SCENE -> {
+                                    val previewArgb = settings.scenePreviewArgb
+                                    if (previewArgb != 0) {
+                                        hueViewModel.setGroupColorAndBrightnessSuspend(g.id, previewArgb, targetBriPercent, immediate = true)
+                                    } else {
+                                        hueViewModel.setGroupBrightnessForGroupSuspend(g.id, targetBriPercent, immediate = true)
+                                    }
+                                }
+                            }
+                        }
+                        // remove members from remaining set so we don't update per-light
+                        members.forEach { affectedIds.remove(it) }
+                    }
+                    deferreds.add(d)
+                }
+
+                // For any remaining lights, send per-light updates in parallel
+                val remaining = affected.filter { affectedIds.contains(it.id) }
+                for (l in remaining) {
+                    val d = async {
+                        safeCall("apply preview ${l.id}") {
+                            when (settings.colorMode) {
+                                HueColorMode.CUSTOM_COLOR -> {
+                                    if (l.supportsColor) {
+                                        hueViewModel.setColorAndBrightnessForLightSuspend(l.id, settings.colorArgb, targetBriPercent, immediate = true)
+                                    } else {
+                                        hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent, immediate = true)
+                                    }
+                                }
+                                HueColorMode.CUSTOM_WHITE -> {
+                                    if (l.supportsCt) {
+                                        hueViewModel.setCtAndBrightnessForLightSuspend(l.id, settings.colorTemperature, targetBriPercent, immediate = true)
+                                    } else {
+                                        hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent, immediate = true)
+                                    }
+                                }
+                                HueColorMode.SCENE -> {
+                                    val previewArgb = settings.scenePreviewArgb
+                                    if (settings.lightIds.isNotEmpty() && previewArgb != 0 && l.supportsColor) {
+                                        hueViewModel.setColorAndBrightnessForLightSuspend(l.id, previewArgb, targetBriPercent, immediate = true)
+                                    } else {
+                                        hueViewModel.setLightBrightnessSuspend(l.id, targetBriPercent, immediate = true)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    deferreds.add(d)
+                }
+
+                // await all group + per-light actions
+                try { deferreds.awaitAll() } catch (e: Exception) { Log.w("HueAutomation", "apply preview grouped awaitAll failed: ${e.message}", e) }
+            }
+        } catch (e: Exception) {
+            Log.w("HueAutomation", "apply preview grouped failed: ${e.message}", e)
+        }
+
+        val showDurationMs = 2_000L // shorter preview so user sees it sooner and it returns faster
+
+        val elapsed = System.currentTimeMillis() - start
+        Log.d("HueAutomation", "runTest applied preview to ${affected.size} lights in ${elapsed}ms")
+
         try { delay(showDurationMs) } catch (_: Exception) {}
 
-        // Restore original states for ALL known lights (this will also revert any unintended global changes)
         try {
             kotlinx.coroutines.coroutineScope {
-                originalStates.map { (id, pair) -> async {
-                    val (wasOn, bri) = pair
-                    try {
-                        if (wasOn) {
-                            try { hueViewModel.setLightBrightnessSuspend(id, bri) } catch (_: Exception) {}
-                            delay(50)
-                            try { hueViewModel.setLightOnSuspend(id, true) } catch (_: Exception) {}
+                // Prefer restoring from rawStates (full color/ct/hue). Fall back to originalStates if raw missing.
+                affected.map { l -> async {
+                    val id = l.id
+                    val raw = rawStates[id]
+                    safeCall("restore state $id") {
+                        if (raw != null) {
+                            hueViewModel.restoreLightStateFromRaw(id, raw)
                         } else {
-                            try { hueViewModel.setLightOnSuspend(id, false) } catch (_: Exception) {}
+                            // fallback: restore on/bri only
+                            val pair = originalStates[id]
+                            if (pair != null) {
+                                val (wasOn, bri) = pair
+                                if (wasOn) {
+                                    hueViewModel.setLightBrightnessSuspend(id, bri)
+                                    delay(10)
+                                    hueViewModel.setLightOnSuspend(id, true)
+                                } else {
+                                    hueViewModel.setLightOnSuspend(id, false)
+                                }
+                            }
                         }
-                    } catch (_: Exception) {}
+                    }
                 } }.awaitAll()
             }
+        } catch (_: Exception) {
+            // ignore
+        }
+
+        try {
+            val msg = if (_failureCount == 0) "Test applied to ${_successCount} actions" else "Test: ${_successCount} succeeded, ${_failureCount} failed"
+            snackbarHostState.showSnackbar(msg)
         } catch (_: Exception) {}
     }
+}
+
+// Helper used by unit tests: compute which lights would be affected by Test based on current bridge state
+@Suppress("unused")
+internal fun computeTestAffectedLights(allLights: List<HueLight>, settings: HueAutomationData, requireOn: Boolean = true): List<HueLight> {
+    val targetIds = settings.lightIds.toSet()
+    if (targetIds.isEmpty()) return emptyList()
+    var affected = allLights.filter { targetIds.contains(it.id) }
+    if (requireOn) affected = affected.filter { it.on }
+    return affected
 }

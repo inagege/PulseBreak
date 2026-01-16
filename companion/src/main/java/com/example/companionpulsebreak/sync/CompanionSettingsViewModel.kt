@@ -46,16 +46,24 @@ class CompanionSettingsViewModel(application: Application) : AndroidViewModel(ap
         dataEvents.forEach { event ->
             if (event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == "/settings") {
                 val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                val newSettings = SettingsData(
-                    isDarkMode = dataMap.getBoolean("isDarkMode"),
-                    buttonColor = dataMap.getInt("buttonColor"),
-                    buttonTextColor = dataMap.getInt("buttonTextColor"),
-                    screenSelection = dataMap.getString("screenSelection") ?: "Grid"
-                )
-                // When remote data arrives, save it locally. DataStore will then emit the update.
+
+                // Merge remote partial settings with the existing stored settings to avoid clearing
+                // fields the remote didn't send (notably hueAutomation).
                 viewModelScope.launch {
-                    settingsManager.applySettings(newSettings)
-                    Log.d("ViewModel", "Received and applied remote settings: $newSettings")
+                    try {
+                        val current = settingsManager.loadInitialSettings()
+                        val merged = current.copy(
+                            isDarkMode = dataMap.getBoolean("isDarkMode", current.isDarkMode),
+                            buttonColor = dataMap.getInt("buttonColor", current.buttonColor),
+                            buttonTextColor = dataMap.getInt("buttonTextColor", current.buttonTextColor),
+                            screenSelection = dataMap.getString("screenSelection") ?: current.screenSelection
+                            // NOTE: do not touch hueAutomation here; preserve current.hueAutomation
+                        )
+                        settingsManager.applySettings(merged)
+                        Log.d("ViewModel", "Received remote settings and merged: $merged")
+                    } catch (e: Exception) {
+                        Log.w("ViewModel", "Failed to merge remote settings: ${e.message}")
+                    }
                 }
             }
         }

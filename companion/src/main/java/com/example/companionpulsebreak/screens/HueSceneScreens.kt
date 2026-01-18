@@ -1,7 +1,6 @@
 // filepath: companion/src/main/java/com/example/companionpulsebreak/screens/HueSceneScreens.kt
 package com.example.companionpulsebreak.screens
 
-import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,7 +8,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -36,8 +34,10 @@ internal fun HueColorScreen(
     val groups by hueViewModel.groups.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
-    val hasColor = remember(initial.lightIds, initial.groupIds, lights, groups) {
-        selectedTargetsHaveColor(initial, lights, groups)
+    var draft by remember { mutableStateOf(initial) }
+
+    val hasColor by remember {
+        derivedStateOf { selectedTargetsHaveColor(draft, lights, groups) }
     }
 
     // Use only the local hard-coded fallback scenes per user's request.
@@ -51,8 +51,6 @@ internal fun HueColorScreen(
             SceneUi("sunset", "Sunset", Color(0xFFFF9B6A))
         )
     }
-
-    var draft by remember { mutableStateOf(initial) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Hue scene gallery", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)

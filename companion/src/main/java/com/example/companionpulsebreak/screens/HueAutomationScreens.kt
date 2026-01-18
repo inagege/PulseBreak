@@ -430,13 +430,6 @@ private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, sco
         // The user expects a preview: include selected lights even if they're currently OFF so we can
         // turn them on for the preview. We'll restore original states afterwards.
         val affected = computeTestAffectedLights(allLights, settings, requireOn = false)
-        if (affected.isEmpty()) {
-            Log.d("HueAutomation", "runTest aborted: selected lights not present in bridge state - nothing to test")
-            try { snackbarHostState.showSnackbar("No selected lights available to Test") } catch (_: Exception) {}
-            return@launch
-        }
-
-        try { snackbarHostState.showSnackbar("Starting Test on ${affected.size} lights") } catch (_: Exception) {}
 
         // Capture the original ON/brightness state for ALL lights as a fallback, but for full
         // color/ct/hue restoration we fetch the raw per-light state JSON from the bridge and
@@ -547,10 +540,7 @@ private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, sco
             Log.w("HueAutomation", "apply preview grouped failed: ${e.message}", e)
         }
 
-        val showDurationMs = 2_000L // shorter preview so user sees it sooner and it returns faster
-
-        val elapsed = System.currentTimeMillis() - start
-        Log.d("HueAutomation", "runTest applied preview to ${affected.size} lights in ${elapsed}ms")
+        val showDurationMs = 3_000L
 
         try { delay(showDurationMs) } catch (_: Exception) {}
 
@@ -583,11 +573,6 @@ private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, sco
         } catch (_: Exception) {
             // ignore
         }
-
-        try {
-            val msg = if (_failureCount == 0) "Test applied to ${_successCount} actions" else "Test: ${_successCount} succeeded, ${_failureCount} failed"
-            snackbarHostState.showSnackbar(msg)
-        } catch (_: Exception) {}
     }
 }
 

@@ -1,6 +1,6 @@
 [versions]
 accompanistPager = "<version>"
-agp = "8.7.2"
+agp = "8.13.2"
 composeFoundationVersion = "1.1.0"
 composeMaterialVersion = "<version>"
 kotlin = "2.0.0"

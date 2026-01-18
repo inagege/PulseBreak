@@ -2,6 +2,7 @@
 package com.example.companionpulsebreak.screens
 
 import android.graphics.Color as AndroidColor
+import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
@@ -159,13 +160,28 @@ fun selectedTargetsHaveColor(
     allLights: List<HueLight>,
     allGroups: List<HueGroup>
 ): Boolean {
-    val groupMemberIds = allGroups
-        .filter { data.groupIds.contains(it.id) }
-        .flatMap { it.lightIds }
+    try {
+        // Collect member IDs from selected groups (guard in case group lightIds are null/empty)
+        val groupMemberIds = allGroups
+            .filter { it.id in data.groupIds }
+            .flatMap { it.lightIds ?: emptyList() }
 
-    val targetIds = (data.lightIds + groupMemberIds).toSet()
-    val affected = if (targetIds.isEmpty()) allLights else allLights.filter { it.id in targetIds }
+        val targetIds = (data.lightIds + groupMemberIds).toSet()
 
-    // You must have HueLight.supportsColor for this to work:
-    return affected.any { it.supportsColor }
+    // If the user hasn't selected any specific targets, don't assume "all lights".
+    if (targetIds.isEmpty()) return false
+
+        val affected = allLights.filter { it.id in targetIds }
+
+        // Log which affected lights and whether they support color
+        Log.d("HueColorWidgets", "affected=${affected.map { it.id to it.supportsColor }}")
+
+        // Return true if any of the explicitly selected targets support color
+        val result = affected.any { it.supportsColor }
+        Log.d("HueColorWidgets", "selectedTargetsHaveColor result=$result")
+        return result
+    } catch (e: Exception) {
+        Log.w("HueColorWidgets", "selectedTargetsHaveColor failed: ${e.message}")
+        return false
+    }
 }

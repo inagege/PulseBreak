@@ -1,4 +1,3 @@
-// filepath: companion/src/main/java/com/example/companionpulsebreak/screens/HueLightSelectionScreens.kt
 package com.example.companionpulsebreak.screens
 
 import androidx.compose.foundation.clickable
@@ -11,9 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
 import android.util.Log
 import com.example.companionpulsebreak.sync.HueViewModel
 import com.example.companionpulsebreak.sync.HueLight
@@ -37,7 +33,6 @@ internal fun LightsSelectionScreen(
 ) {
     val lights by hueViewModel.lights.collectAsState()
     val groups by hueViewModel.groups.collectAsState()
-    val coroutineScope = rememberCoroutineScope()
 
     var selectedLights by remember { mutableStateOf(initial.lightIds.toSet()) }
     var selectedGroups by remember { mutableStateOf(initial.groupIds.toSet()) }
@@ -129,6 +124,7 @@ internal fun LightsSelectionScreen(
             GroupListScreen(
                 groups = groups,
                 selectedGroups = selectedGroups,
+                selectedLights = selectedLights,
                 checkedGroups = checkedGroups,
                 onClearGroupChildren = { gid ->
                     val group = groups.find { it.id == gid }
@@ -213,6 +209,7 @@ internal fun LightsSelectionScreen(
 internal fun GroupListScreen(
     groups: List<HueGroup>,
     selectedGroups: Set<String>,
+    selectedLights: Set<String>,
     checkedGroups: Set<String>,
     onClearGroupChildren: (groupId: String) -> Unit,
     onToggleGroup: (groupId: String, isSelected: Boolean) -> Unit,
@@ -237,6 +234,10 @@ internal fun GroupListScreen(
             items(groups) { g ->
                 val isExplicitSelected = selectedGroups.contains(g.id)
                 val isChecked = checkedGroups.contains(g.id)
+                // total number of lights in this group
+                val totalCount = g.lightIds.size
+                 // count how many lights in this group are currently selected in the draft
+                val selectedCount = g.lightIds.count { lid -> selectedLights.contains(lid) }
 
                 Log.d("HueAutomation", "GroupListScreen item: id=${g.id} name=${g.name} explicit=$isExplicitSelected checked=$isChecked")
 
@@ -255,6 +256,8 @@ internal fun GroupListScreen(
                 GroupRow(
                     name = g.name,
                     isSelected = isChecked,
+                    selectedCount = selectedCount,
+                    selectedTotal = totalCount,
                     onClick = { onGroupClick(g.id) },
                     onToggle = toggleHandler,
                     surfaceColor = surfaceColor,
@@ -285,6 +288,8 @@ internal fun GroupListScreen(
 internal fun GroupRow(
     name: String,
     isSelected: Boolean,
+    selectedCount: Int,
+    selectedTotal: Int,
     onClick: () -> Unit,
     onToggle: (Boolean) -> Unit,
     surfaceColor: androidx.compose.ui.graphics.Color,
@@ -312,6 +317,19 @@ internal fun GroupRow(
                     style = MaterialTheme.typography.titleMedium,
                     color = onSurfaceColor
                 )
+                if (selectedCount > 0 && selectedTotal > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    val label = if (selectedCount == selectedTotal) {
+                        "All selected"
+                    } else {
+                        "$selectedCount/$selectedTotal selected"
+                    }
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onSurfaceColor.copy(alpha = 0.75f)
+                    )
+                }
             }
 
             Switch(

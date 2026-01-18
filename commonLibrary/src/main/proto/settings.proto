@@ -9,6 +9,11 @@ message SettingsPreferences {
     int32 button_text_color = 3;
     string screen_selection = 4;
 
+    // Break scheduling settings
+    bool schedule_break_intervals = 5;
+    int32 break_interval_hours = 6;
+    int32 break_interval_minutes = 7;
+
     // Hue automation settings (optional)
     HueAutomationSettings hue_automation = 10;
 }

@@ -36,7 +36,8 @@ data class HomeItem(
 fun HomeScreen(
     viewModel: CompanionSettingsViewModel,
     onNavigateToSettings: () -> Unit,
-    onNavigateToHue: () -> Unit
+    onNavigateToHue: () -> Unit,
+    onNavigateToBreakSessions: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val buttonColor = Color(settings.buttonColor)
@@ -112,6 +113,7 @@ fun HomeScreen(
                             when (item.label) {
                                 "Design Options" -> onNavigateToSettings()
                                 "Light Setup" -> onNavigateToHue()
+                                "Break Management" -> onNavigateToBreakSessions()
                                 else -> {
                                     // no-op for preliminary draft
                                 }
@@ -131,9 +133,9 @@ fun FeatureCard(
     onSurfaceColor: Color,
     primaryColor: Color,
     descriptionColor: Color,
+    modifier: Modifier = Modifier,
     shadowElevation: Dp = 4.dp,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     Card(
         modifier = modifier

@@ -19,5 +19,9 @@ data class SettingsData(
     val buttonColor: Int = 0xFF90EE90.toInt(),
     val buttonTextColor: Int = 0xFF2F4F4F.toInt(),
     val screenSelection: String = "Grid",
+    // Break scheduling
+    val scheduleBreakIntervals: Boolean = false,
+    val breakIntervalHours: Int = 0,
+    val breakIntervalMinutes: Int = 15,
     val hueAutomation: HueAutomationData = HueAutomationData()
 )

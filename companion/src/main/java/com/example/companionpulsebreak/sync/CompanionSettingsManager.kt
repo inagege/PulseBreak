@@ -53,11 +53,30 @@ class SettingsManager(private val context: Context) {
             )
         } else HueAutomationData()
 
+        // Read new break scheduling fields via reflection in case protobuf generated class hasn't been regenerated yet.
+        val scheduleBreakIntervals = try {
+            val m = prefs::class.java.getMethod("getScheduleBreakIntervals")
+            (m.invoke(prefs) as? Boolean) ?: false
+        } catch (_: Throwable) { false }
+
+        val breakIntervalHours = try {
+            val m = prefs::class.java.getMethod("getBreakIntervalHours")
+            (m.invoke(prefs) as? Int) ?: 0
+        } catch (_: Throwable) { 0 }
+
+        val breakIntervalMinutes = try {
+            val m = prefs::class.java.getMethod("getBreakIntervalMinutes")
+            (m.invoke(prefs) as? Int) ?: 0
+        } catch (_: Throwable) { 0 }
+
         SettingsData(
             isDarkMode = prefs.isDarkMode,
             buttonColor = prefs.buttonColor.takeIf { it != 0 } ?: 0xFF90EE90.toInt(),
             buttonTextColor = prefs.buttonTextColor.takeIf { it != 0 } ?: 0xFF2F4F4F.toInt(),
             screenSelection = prefs.screenSelection.ifEmpty { "Grid" },
+            scheduleBreakIntervals = scheduleBreakIntervals,
+            breakIntervalHours = breakIntervalHours,
+            breakIntervalMinutes = breakIntervalMinutes,
             hueAutomation = hue
         )
         .also {
@@ -74,6 +93,21 @@ class SettingsManager(private val context: Context) {
                     .setButtonColor(settings.buttonColor)
                     .setButtonTextColor(settings.buttonTextColor)
                     .setScreenSelection(settings.screenSelection)
+                // set break scheduling fields via reflection (builder may not have these methods until proto is regenerated)
+                try {
+                    val m = builder::class.java.getMethod("setScheduleBreakIntervals", Boolean::class.javaPrimitiveType)
+                    m.invoke(builder, settings.scheduleBreakIntervals)
+                } catch (_: Throwable) {}
+
+                try {
+                    val m = builder::class.java.getMethod("setBreakIntervalHours", Int::class.javaPrimitiveType)
+                    m.invoke(builder, settings.breakIntervalHours)
+                } catch (_: Throwable) {}
+
+                try {
+                    val m = builder::class.java.getMethod("setBreakIntervalMinutes", Int::class.javaPrimitiveType)
+                    m.invoke(builder, settings.breakIntervalMinutes)
+                } catch (_: Throwable) {}
 
                 // update hue automation
                 val hue = settings.hueAutomation

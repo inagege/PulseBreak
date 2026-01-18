@@ -27,13 +27,20 @@ fun CompanionNavigation (
             HomeScreen(
                 viewModel = viewModel,
                 onNavigateToSettings = { navController.navigate("companion_settings") },
-                onNavigateToHue = { navController.navigate("hue_entry") }
+                onNavigateToHue = { navController.navigate("hue_entry") },
+                onNavigateToBreakSessions = { navController.navigate("break_sessions") }
             )
         }
         composable("companion_settings") {
             CompanionSettingsScreen(
                 viewModel = viewModel,
                 onBackToHome = { navController.navigate("companion_home") }
+            )
+        }
+        composable("break_sessions") {
+            BreakSessionsScreen(
+                viewModel = viewModel,
+                onBack = { navController.navigateUp() }
             )
         }
 

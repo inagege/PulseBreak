@@ -46,6 +46,9 @@ fun CompanionSettingsScreen(
     var localButtonColor by remember { mutableStateOf(Color(settings.buttonColor)) }
     var localButtonTextColor by remember { mutableStateOf(Color(settings.buttonTextColor)) }
     var localScreenSelection by remember { mutableStateOf(settings.screenSelection) }
+    var localScheduleBreakIntervals by remember { mutableStateOf(settings.scheduleBreakIntervals) }
+    var localBreakIntervalHours by remember { mutableStateOf(settings.breakIntervalHours) }
+    var localBreakIntervalMinutes by remember { mutableStateOf(settings.breakIntervalMinutes) }
 
     // Keep locals in sync if settings update from elsewhere
     LaunchedEffect(settings) {
@@ -53,6 +56,9 @@ fun CompanionSettingsScreen(
         localButtonColor = Color(settings.buttonColor)
         localButtonTextColor = Color(settings.buttonTextColor)
         localScreenSelection = settings.screenSelection
+        localScheduleBreakIntervals = settings.scheduleBreakIntervals
+        localBreakIntervalHours = settings.breakIntervalHours
+        localBreakIntervalMinutes = settings.breakIntervalMinutes
     }
 
     val colorList = listOf(
@@ -93,14 +99,14 @@ fun CompanionSettingsScreen(
             btnText: Color = localButtonTextColor,
             screenSel: String = localScreenSelection
         ) {
-            viewModel.updateSettings(
-                SettingsData(
+            viewModel.updateSettingsPartial { current ->
+                current.copy(
                     isDarkMode = isDark,
                     buttonColor = btnColor.toArgb(),
                     buttonTextColor = btnText.toArgb(),
                     screenSelection = screenSel
                 )
-            )
+            }
         }
 
         Scaffold(
@@ -209,7 +215,7 @@ fun CompanionSettingsScreen(
 }
 
 @Composable
-private fun SettingsCard(
+fun SettingsCard(
     title: String,
     surfaceColor: Color,
     shadowElevation: Dp,

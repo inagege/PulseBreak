@@ -56,7 +56,10 @@ class CompanionSettingsViewModel(application: Application) : AndroidViewModel(ap
                             isDarkMode = dataMap.getBoolean("isDarkMode", current.isDarkMode),
                             buttonColor = dataMap.getInt("buttonColor", current.buttonColor),
                             buttonTextColor = dataMap.getInt("buttonTextColor", current.buttonTextColor),
-                            screenSelection = dataMap.getString("screenSelection") ?: current.screenSelection
+                            screenSelection = dataMap.getString("screenSelection") ?: current.screenSelection,
+                            scheduleBreakIntervals = dataMap.getBoolean("scheduleBreakIntervals", current.scheduleBreakIntervals),
+                            breakIntervalHours = dataMap.getInt("breakIntervalHours", current.breakIntervalHours),
+                            breakIntervalMinutes = dataMap.getInt("breakIntervalMinutes", current.breakIntervalMinutes)
                             // NOTE: do not touch hueAutomation here; preserve current.hueAutomation
                         )
                         settingsManager.applySettings(merged)
@@ -82,6 +85,21 @@ class CompanionSettingsViewModel(application: Application) : AndroidViewModel(ap
             settingsManager.applySettings(newSettings)
             // Send to companion
             WearSyncHelper.sendSettings(context, newSettings)
+        }
+    }
+
+    // Safer partial update API: applies a modifier to the current settings so callers
+    // don't accidentally overwrite unrelated fields.
+    fun updateSettingsPartial(modifier: (SettingsData) -> SettingsData) {
+        viewModelScope.launch {
+            try {
+                val current = settingsManager.loadInitialSettings()
+                val updated = try { modifier(current) } catch (e: Exception) { current }
+                settingsManager.applySettings(updated)
+                WearSyncHelper.sendSettings(context, updated)
+            } catch (e: Exception) {
+                Log.w("ViewModel", "updateSettingsPartial failed: ${e.message}")
+            }
         }
     }
 

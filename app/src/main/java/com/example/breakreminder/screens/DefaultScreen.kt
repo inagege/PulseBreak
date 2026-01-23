@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.HeartRateReader
 import com.example.breakreminder.sync.AppSettingsViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun DefaultScreen(
@@ -41,6 +42,58 @@ fun DefaultScreen(
         onDispose {
             isActive = false
             heartRateReader.stopReading()
+        }
+    }
+
+    // When the default screen appears, request the companion to restore any previewed lights
+    LaunchedEffect(Unit) {
+        HeartRateReader.sendHueRestoreMessage(context)
+    }
+
+    // Timer: compute configured interval from settings and run a countdown while DefaultScreen is active
+    val configuredIntervalMillis = remember(settings.breakIntervalHours, settings.breakIntervalMinutes) {
+        (settings.breakIntervalHours * 60 * 60 * 1000L) + (settings.breakIntervalMinutes * 60 * 1000L)
+    }
+
+    // remaining time state
+    var remainingMillis by remember { mutableStateOf(configuredIntervalMillis) }
+
+    // Reset timer whenever we enter the DefaultScreen or the configured interval changes
+    LaunchedEffect(key1 = configuredIntervalMillis) {
+        // If the user changed the interval to a smaller value than remaining, trigger immediately
+        if (configuredIntervalMillis < remainingMillis) {
+            try {
+                onNavigateToHome()
+            } catch (_: Exception) {}
+            // reset remaining for next time (navigation will usually dispose this composable)
+            remainingMillis = configuredIntervalMillis
+            return@LaunchedEffect
+        }
+        // otherwise reset the timer to the new configured interval
+        remainingMillis = configuredIntervalMillis
+    }
+
+    // Countdown loop
+    LaunchedEffect(key1 = isActive, key2 = configuredIntervalMillis) {
+        if (!isActive) return@LaunchedEffect
+        // initialize remaining if zero
+        if (remainingMillis <= 0L) remainingMillis = configuredIntervalMillis
+        var lastTime = System.currentTimeMillis()
+        while (isActive) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastTime
+            lastTime = now
+            remainingMillis = (remainingMillis - elapsed).coerceAtLeast(0L)
+            if (remainingMillis <= 0L) {
+                // timer expired -> trigger HomeScreen and reset
+                try {
+                    onNavigateToHome()
+                } catch (_: Exception) {}
+                remainingMillis = configuredIntervalMillis
+                break
+            }
+            // tick every second
+            delay(1000L)
         }
     }
 

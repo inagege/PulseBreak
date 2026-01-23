@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="PulseBreak">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-10-31T13:04:49.663561Z">
+        <DropdownSelection timestamp="2026-01-23T15:15:11.341618Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/inagege/.android/avd/Medium_Phone.avd" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/inagege/.android/avd/Wear_OS_Large_Round_API_33.avd" />
             </handle>
           </Target>
         </DropdownSelection>

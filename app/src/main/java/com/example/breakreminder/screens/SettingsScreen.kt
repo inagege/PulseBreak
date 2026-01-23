@@ -90,7 +90,12 @@ fun SettingsScreen(
                             isDarkMode = newValue,
                             buttonColor = localButtonColor.toArgb(),
                             buttonTextColor = localButtonTextColor.toArgb(),
-                            screenSelection = localScreenSelection
+                            screenSelection = localScreenSelection,
+                            // preserve scheduling and hue fields from the current settings
+                            scheduleBreakIntervals = settings.scheduleBreakIntervals,
+                            breakIntervalHours = settings.breakIntervalHours,
+                            breakIntervalMinutes = settings.breakIntervalMinutes,
+                            hueAutomation = settings.hueAutomation
                         )
                     )
                 }
@@ -106,7 +111,11 @@ fun SettingsScreen(
                             isDarkMode = localIsDarkMode,
                             buttonColor = localButtonColor.toArgb(),
                             buttonTextColor = localButtonTextColor.toArgb(),
-                            screenSelection = localScreenSelection
+                            screenSelection = localScreenSelection,
+                            scheduleBreakIntervals = settings.scheduleBreakIntervals,
+                            breakIntervalHours = settings.breakIntervalHours,
+                            breakIntervalMinutes = settings.breakIntervalMinutes,
+                            hueAutomation = settings.hueAutomation
                         )
                     )
                 }
@@ -121,7 +130,11 @@ fun SettingsScreen(
                             isDarkMode = localIsDarkMode,
                             buttonColor = localButtonColor.toArgb(),
                             buttonTextColor = localButtonTextColor.toArgb(),
-                            screenSelection = chosenStyle
+                            screenSelection = chosenStyle,
+                            scheduleBreakIntervals = settings.scheduleBreakIntervals,
+                            breakIntervalHours = settings.breakIntervalHours,
+                            breakIntervalMinutes = settings.breakIntervalMinutes,
+                            hueAutomation = settings.hueAutomation
                         )
                     )
                 }
@@ -135,7 +148,11 @@ fun SettingsScreen(
                                 isDarkMode = localIsDarkMode,
                                 buttonColor = localButtonColor.toArgb(),
                                 buttonTextColor = localButtonTextColor.toArgb(),
-                                screenSelection = localScreenSelection
+                                screenSelection = localScreenSelection,
+                                scheduleBreakIntervals = settings.scheduleBreakIntervals,
+                                breakIntervalHours = settings.breakIntervalHours,
+                                breakIntervalMinutes = settings.breakIntervalMinutes,
+                                hueAutomation = settings.hueAutomation
                             )
                         )
                         onNavigateBack?.invoke()

@@ -437,6 +437,26 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Suspend until Hue state is refreshed and lights/groups are available or timeout elapses.
+     * This is a helper used by callers that need fresh light/group info before taking action.
+     */
+    suspend fun refreshHueStateAndWait(timeoutMs: Long = 6000L, pollMs: Long = 200L) {
+        // Trigger a refresh (no-op if a refresh is already running)
+        refreshHueState()
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            try {
+                // if bridge info present and at least one light or group discovered, consider ready
+                if (!(_bridgeIp.value.isNullOrEmpty() || _hueUsername.value.isNullOrEmpty())) {
+                    if (_lights.value.isNotEmpty() || _groups.value.isNotEmpty()) return
+                }
+            } catch (_: Exception) {}
+            try { delay(pollMs) } catch (_: Exception) { break }
+        }
+        // timeout — return anyway; callers should handle empty lists
+    }
+
     // Move the previous refresh logic to an internal suspending function to keep the guard clean
     private suspend fun internalRefreshHueState() {
         withContext(Dispatchers.IO) {

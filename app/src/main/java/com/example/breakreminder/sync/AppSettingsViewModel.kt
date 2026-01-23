@@ -29,9 +29,8 @@ class AppSettingsViewModelFactory(private val app: Application) : ViewModelProvi
 
 class AppSettingsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val context = application.applicationContext
-    private val settingsManager = SettingsManager(context) // Instantiate the new manager
-    private val dataClient = Wearable.getDataClient(context)
+    private val settingsManager = SettingsManager(getApplication()) // use application to avoid storing context
+    private val dataClient = Wearable.getDataClient(getApplication())
 
     // Expose settings as a StateFlow from the DataStore flow
     val settings: StateFlow<SettingsData> = settingsManager.settingsFlow
@@ -41,21 +40,45 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
             initialValue = SettingsData() // Provide a default initial value
         )
 
-    // Listener for remote data changes
+    // Listener for remote data changes. Merge incoming partial settings into current stored settings
     private val dataChangedListener = DataClient.OnDataChangedListener { dataEvents ->
         dataEvents.forEach { event ->
             if (event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == "/settings") {
                 val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                val newSettings = SettingsData(
-                    isDarkMode = dataMap.getBoolean("isDarkMode"),
-                    buttonColor = dataMap.getInt("buttonColor"),
-                    buttonTextColor = dataMap.getInt("buttonTextColor"),
-                    screenSelection = dataMap.getString("screenSelection") ?: "Grid"
-                )
-                // When remote data arrives, save it locally. DataStore will then emit the update.
+
                 viewModelScope.launch {
-                    settingsManager.applySettings(newSettings)
-                    Log.d("ViewModel", "Received and applied remote settings: $newSettings")
+                    try {
+                        val current = settingsManager.loadInitialSettings()
+
+                        // Only update hueAutomation subfields if the DataMap actually contains them.
+                        val hueUpdateFlag = dataMap.getBoolean("hue_update", false)
+                        val scheduleUpdateFlag = dataMap.getBoolean("schedule_update", false)
+                        val newHue = if (hueUpdateFlag) current.hueAutomation.copy(
+                            lightIds = dataMap.getStringArrayList("hue_lightIds")?.toList() ?: current.hueAutomation.lightIds,
+                            groupIds = dataMap.getStringArrayList("hue_groupIds")?.toList() ?: current.hueAutomation.groupIds,
+                            brightness = dataMap.getInt("hue_brightness", current.hueAutomation.brightness),
+                            colorArgb = dataMap.getInt("hue_colorArgb", current.hueAutomation.colorArgb),
+                            colorTemperature = dataMap.getInt("hue_colorTemperature", current.hueAutomation.colorTemperature),
+                            sceneId = dataMap.getString("hue_sceneId") ?: current.hueAutomation.sceneId,
+                            colorMode = try { com.example.commonlibrary.HueColorMode.valueOf(dataMap.getString("hue_colorMode") ?: current.hueAutomation.colorMode.name) } catch (_: Exception) { current.hueAutomation.colorMode },
+                            scenePreviewArgb = dataMap.getInt("hue_scenePreviewArgb", current.hueAutomation.scenePreviewArgb)
+                        ) else current.hueAutomation
+
+                        val merged = current.copy(
+                            isDarkMode = dataMap.getBoolean("isDarkMode", current.isDarkMode),
+                            buttonColor = dataMap.getInt("buttonColor", current.buttonColor),
+                            buttonTextColor = dataMap.getInt("buttonTextColor", current.buttonTextColor),
+                            screenSelection = dataMap.getString("screenSelection") ?: current.screenSelection,
+                            scheduleBreakIntervals = if (scheduleUpdateFlag && dataMap.containsKey("scheduleBreakIntervals")) dataMap.getBoolean("scheduleBreakIntervals") else current.scheduleBreakIntervals,
+                            breakIntervalHours = if (scheduleUpdateFlag && dataMap.containsKey("breakIntervalHours")) dataMap.getInt("breakIntervalHours") else current.breakIntervalHours,
+                            breakIntervalMinutes = if (scheduleUpdateFlag && dataMap.containsKey("breakIntervalMinutes")) dataMap.getInt("breakIntervalMinutes") else current.breakIntervalMinutes,
+                            hueAutomation = newHue
+                        )
+                        settingsManager.applySettings(merged)
+                        Log.d("ViewModel", "Received remote settings and merged: $merged")
+                    } catch (e: Exception) {
+                        Log.w("ViewModel", "Failed to merge remote settings: ${e.message}")
+                    }
                 }
             }
         }
@@ -70,10 +93,44 @@ class AppSettingsViewModel(application: Application) : AndroidViewModel(applicat
     // Update settings locally and send to the other device
     fun updateSettings(newSettings: SettingsData) {
         viewModelScope.launch {
-            // Persist locally using the new suspend function
-            settingsManager.applySettings(newSettings)
-            // Send to companion
-            WearSyncHelper.sendSettings(context, newSettings)
+            try {
+                // Load current stored settings
+                val current = settingsManager.loadInitialSettings()
+
+                // Determine whether the caller intends to update schedule or hue fields
+                val scheduleChanged = (newSettings.scheduleBreakIntervals != current.scheduleBreakIntervals)
+                        || (newSettings.breakIntervalHours != current.breakIntervalHours)
+                        || (newSettings.breakIntervalMinutes != current.breakIntervalMinutes)
+
+                val hueChanged = (newSettings.hueAutomation.lightIds.isNotEmpty()
+                        || newSettings.hueAutomation.groupIds.isNotEmpty()
+                        || newSettings.hueAutomation.sceneId != null
+                        || newSettings.hueAutomation.brightness != current.hueAutomation.brightness
+                        || newSettings.hueAutomation.colorArgb != current.hueAutomation.colorArgb)
+
+                // Build merged local settings: always copy UI fields; copy schedule/hue only if caller intended to change them
+                val mergedLocal = current.copy(
+                    isDarkMode = newSettings.isDarkMode,
+                    buttonColor = newSettings.buttonColor,
+                    buttonTextColor = newSettings.buttonTextColor,
+                    screenSelection = newSettings.screenSelection,
+                    scheduleBreakIntervals = if (scheduleChanged) newSettings.scheduleBreakIntervals else current.scheduleBreakIntervals,
+                    breakIntervalHours = if (scheduleChanged) newSettings.breakIntervalHours else current.breakIntervalHours,
+                    breakIntervalMinutes = if (scheduleChanged) newSettings.breakIntervalMinutes else current.breakIntervalMinutes,
+                    hueAutomation = if (hueChanged) newSettings.hueAutomation else current.hueAutomation
+                )
+
+                // Persist merged settings locally
+                settingsManager.applySettings(mergedLocal)
+
+                // Decide which fields to send to companion: send schedule/hue only if they were changed
+                val includeSchedule = scheduleChanged
+                val includeHue = hueChanged
+
+                WearSyncHelper.sendSettings(getApplication(), mergedLocal, includeSchedule = includeSchedule, includeHue = includeHue)
+            } catch (e: Exception) {
+                Log.w("ViewModel", "updateSettings failed: ${e.message}")
+            }
         }
     }
 

@@ -1,9 +1,9 @@
 [versions]
 accompanistPager = "<version>"
-agp = "8.13.2"
+agp = "9.0.0"
 composeFoundationVersion = "1.1.0"
 composeMaterialVersion = "<version>"
-kotlin = "2.0.0"
+kotlin = "2.2.10"
 materialIconsExtended = "<version>"
 playServicesWearable = "19.0.0"
 composeBom = "2024.04.01"

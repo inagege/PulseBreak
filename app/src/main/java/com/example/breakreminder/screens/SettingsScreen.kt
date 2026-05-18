@@ -19,7 +19,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.sync.AppSettingsViewModel
 import com.example.commonlibrary.SettingsData
 
@@ -35,13 +34,17 @@ fun SettingsScreen(
     viewModel: AppSettingsViewModel,
     onNavigateBack: (() -> Unit)? = null
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
 
     // Local state for Compose UI
-    var localIsDarkMode = settings.isDarkMode
-    var localButtonColor = Color(settings.buttonColor)
-    var localButtonTextColor = Color(settings.buttonTextColor)
-    var localScreenSelection = settings.screenSelection
+    var localIsDarkMode by remember(settings.isDarkMode) { mutableStateOf(settings.isDarkMode) }
+    var localButtonColor by remember(settings.buttonColor) {
+        mutableStateOf(runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) })
+    }
+    var localButtonTextColor by remember(settings.buttonTextColor) {
+        mutableStateOf(runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) })
+    }
+    var localScreenSelection by remember(settings.screenSelection) { mutableStateOf(settings.screenSelection) }
 
     val colorList = listOf(
         Color(0xFFFFC0CB), // Pink
@@ -95,17 +98,22 @@ fun SettingsScreen(
                             scheduleBreakIntervals = settings.scheduleBreakIntervals,
                             breakIntervalHours = settings.breakIntervalHours,
                             breakIntervalMinutes = settings.breakIntervalMinutes,
+                            walkBreakDurationMinutes = settings.walkBreakDurationMinutes,
+                            napBreakDurationMinutes = settings.napBreakDurationMinutes,
+                            windowBreakDurationMinutes = settings.windowBreakDurationMinutes,
+                            feedbackPromptEnabled = settings.feedbackPromptEnabled,
+                            personalizationEnabled = settings.personalizationEnabled,
                             hueAutomation = settings.hueAutomation
                         )
                     )
                 }
 
-                Divider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+                HorizontalDivider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
 
                 // Color Selection
-                ColorSelectionRow(colorList, localButtonColor, localButtonTextColor) { newColor ->
+                ColorSelectionRow(colorList, localButtonColor) { newColor ->
                     localButtonColor = newColor
-                    localButtonTextColor = getButtonTextColor(newColor)
+                    localButtonTextColor = getButtonTextColor(newColor.toArgb())
                     viewModel.updateSettings(
                         SettingsData(
                             isDarkMode = localIsDarkMode,
@@ -115,12 +123,17 @@ fun SettingsScreen(
                             scheduleBreakIntervals = settings.scheduleBreakIntervals,
                             breakIntervalHours = settings.breakIntervalHours,
                             breakIntervalMinutes = settings.breakIntervalMinutes,
+                            walkBreakDurationMinutes = settings.walkBreakDurationMinutes,
+                            napBreakDurationMinutes = settings.napBreakDurationMinutes,
+                            windowBreakDurationMinutes = settings.windowBreakDurationMinutes,
+                            feedbackPromptEnabled = settings.feedbackPromptEnabled,
+                            personalizationEnabled = settings.personalizationEnabled,
                             hueAutomation = settings.hueAutomation
                         )
                     )
                 }
 
-                Divider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+                HorizontalDivider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
 
                 // Screen Style
                 ScreenStyleSelection(localScreenSelection, localButtonColor, localButtonTextColor) { chosenStyle ->
@@ -134,12 +147,17 @@ fun SettingsScreen(
                             scheduleBreakIntervals = settings.scheduleBreakIntervals,
                             breakIntervalHours = settings.breakIntervalHours,
                             breakIntervalMinutes = settings.breakIntervalMinutes,
+                            walkBreakDurationMinutes = settings.walkBreakDurationMinutes,
+                            napBreakDurationMinutes = settings.napBreakDurationMinutes,
+                            windowBreakDurationMinutes = settings.windowBreakDurationMinutes,
+                            feedbackPromptEnabled = settings.feedbackPromptEnabled,
+                            personalizationEnabled = settings.personalizationEnabled,
                             hueAutomation = settings.hueAutomation
                         )
                     )
                 }
 
-                Divider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
+                HorizontalDivider(color = Color.Gray, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
 
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     ConfirmButton(localButtonColor, localButtonTextColor) {
@@ -152,6 +170,11 @@ fun SettingsScreen(
                                 scheduleBreakIntervals = settings.scheduleBreakIntervals,
                                 breakIntervalHours = settings.breakIntervalHours,
                                 breakIntervalMinutes = settings.breakIntervalMinutes,
+                                walkBreakDurationMinutes = settings.walkBreakDurationMinutes,
+                                napBreakDurationMinutes = settings.napBreakDurationMinutes,
+                                windowBreakDurationMinutes = settings.windowBreakDurationMinutes,
+                                feedbackPromptEnabled = settings.feedbackPromptEnabled,
+                                personalizationEnabled = settings.personalizationEnabled,
                                 hueAutomation = settings.hueAutomation
                             )
                         )
@@ -197,7 +220,6 @@ fun DarkModeToggle(
 fun ColorSelectionRow(
     colorList: List<Color>,
     localButtonColor: Color,
-    localButtonTextColor: Color,
     onColorSelected: (Color) -> Unit
 ) {
     Column(modifier = Modifier.padding(8.dp)) {
@@ -347,8 +369,8 @@ fun SlidingPreview() {
 }
 
 // Helper
-fun getButtonTextColor(colorKey: Color): Color {
-    return when (colorKey.value.toLong()) {
+fun getButtonTextColor(colorKey: Int): Color {
+    return when (colorKey.toLong()) {
         0xFFFFC0CB -> Color(0xFF4D2324) // Pink
         0xFFADD8E6 -> Color(0xFF003366) // Light Blue
         0xFF90EE90 -> Color(0xFF2F4F4F) // Light Green

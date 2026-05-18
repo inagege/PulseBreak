@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
 import com.example.commonlibrary.SettingsData
 
@@ -39,19 +38,20 @@ fun CompanionSettingsScreen(
     viewModel: CompanionSettingsViewModel,
     onBackToHome: (() -> Unit)? = null
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    // Use an explicit initial value and guard color creation
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
 
     // Local state for Compose UI (keeps UI responsive)
     var localIsDarkMode by remember { mutableStateOf(settings.isDarkMode) }
-    var localButtonColor by remember { mutableStateOf(Color(settings.buttonColor)) }
-    var localButtonTextColor by remember { mutableStateOf(Color(settings.buttonTextColor)) }
+    var localButtonColor by remember { mutableStateOf(runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }) }
+    var localButtonTextColor by remember { mutableStateOf(runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }) }
     var localScreenSelection by remember { mutableStateOf(settings.screenSelection) }
 
     // Keep locals in sync if settings update from elsewhere
     LaunchedEffect(settings) {
         localIsDarkMode = settings.isDarkMode
-        localButtonColor = Color(settings.buttonColor)
-        localButtonTextColor = Color(settings.buttonTextColor)
+        localButtonColor = runCatching { Color(settings.buttonColor) }.getOrElse { localButtonColor }
+        localButtonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { localButtonTextColor }
         localScreenSelection = settings.screenSelection
     }
 
@@ -106,13 +106,13 @@ fun CompanionSettingsScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Settings", fontWeight = FontWeight.Bold, color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor)) },
+                    title = { Text("Settings", fontWeight = FontWeight.Bold, color = if (settings.isDarkMode) localButtonColor else localButtonTextColor) },
                     navigationIcon = {
                         IconButton(onClick = { onBackToHome?.invoke() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor)
+                                tint = if (settings.isDarkMode) localButtonColor else localButtonTextColor
                             )
                         }
                     },

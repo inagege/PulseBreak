@@ -16,6 +16,17 @@ message SettingsPreferences {
 
     // Hue automation settings (optional)
     HueAutomationSettings hue_automation = 10;
+
+    // Stress detection personalization
+    bool feedback_prompt_enabled = 11;
+    bool personalization_enabled = 12;
+    reserved 13;
+    reserved "feedback_prompt_cooldown_minutes";
+
+    // Activity-specific break durations (minutes)
+    int32 walk_break_duration_minutes = 14;
+    int32 nap_break_duration_minutes = 15;
+    int32 window_break_duration_minutes = 16;
 }
 
 message HueAutomationSettings {

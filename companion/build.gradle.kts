@@ -68,6 +68,8 @@ dependencies {
     implementation(libs.material3.android)
     implementation(libs.activity.compose)
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    // lifecycle runtime for Compose (collectAsStateWithLifecycle)
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.3")
     implementation(libs.material.icons.extended)
 
     // AndroidX and Material (legacy)

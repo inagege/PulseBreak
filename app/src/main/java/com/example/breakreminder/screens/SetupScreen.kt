@@ -7,14 +7,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.sync.AppSettingsViewModel
+import com.example.commonlibrary.SettingsData
 
 @Composable
 fun SetupScreen(
@@ -22,7 +23,9 @@ fun SetupScreen(
     onNavigateToHome: () -> Unit,
     onDeny: () -> Unit
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
 
     Scaffold { innerPadding ->
@@ -38,13 +41,13 @@ fun SetupScreen(
                 modifier = Modifier
                     .size(20.dp)
                     .offset(y = 10.dp) // Adjusted to match HomeScreen placement
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Settings,
                     contentDescription = "Settings Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -54,7 +57,7 @@ fun SetupScreen(
             Text(
                 text = "This app requires\naccess to:",
                 fontSize = 18.sp,
-                color = Color(settings.buttonTextColor)
+                color = buttonTextColor
             )
 
             Spacer(modifier = Modifier.height(2.dp))
@@ -62,7 +65,7 @@ fun SetupScreen(
             Text(
                 text = "Local Network Devices\nSamsung Health",
                 fontSize = 16.sp,
-                color = Color(settings.buttonTextColor)
+                color = buttonTextColor
             )
 
             Spacer(modifier = Modifier.height(5.dp))

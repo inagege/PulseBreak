@@ -23,6 +23,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import android.graphics.Color as AndroidColor
 import java.util.concurrent.atomic.AtomicBoolean
 import android.annotation.SuppressLint
@@ -86,104 +87,129 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
 
     // Recompute previewArgb for all cached scenes using current lights state and preview gamma.
     fun recomputeScenePreviews() {
-        try {
-            val updated = mutableListOf<HueScene>()
-            for ((sid, sObj) in scenesRaw) {
-                var preview = 0
-                try {
-                    val lightstates = sObj.optJSONObject("lightstates")
-                    if (lightstates != null) {
-                        var rLinearSum = 0.0
-                        var gLinearSum = 0.0
-                        var bLinearSum = 0.0
-                        var collectedCount = 0.0
-                        val lsKeys = lightstates.keys()
-                        while (lsKeys.hasNext()) {
-                            val lid = lsKeys.next()
-                            val lObj = lightstates.optJSONObject(lid) ?: continue
-                            val on = lObj.optBoolean("on", false)
-                            if (!on) continue
+        if (devBypass.get()) {
+            try { Log.d("HueViewModel", "recomputeScenePreviews skipped due to devBypass") } catch (_: Exception) {}
+            return
+        }
+        // Avoid overlapping recomputations which can overload CPU when called rapidly (e.g., on navigation).
+        if (!isRecomputing.compareAndSet(false, true)) {
+            try { Log.d("HueViewModel", "recomputeScenePreviews skipped: already running") } catch (_: Exception) {}
+            return
+        }
 
-                            var argb: Int? = null
-                            val lightGamut = try { _lights.value.find { it.id == lid }?.colorGamut } catch (_: Exception) { null }
+        // Schedule heavy scene preview computation on a background thread to avoid blocking the main thread
+        viewModelScope.launch(Dispatchers.Default) {
+            val startTs = System.currentTimeMillis()
+            try {
+                try { Log.d("HueViewModel", "recomputeScenePreviews start: $startTs") } catch (_: Exception) {}
+                val updated = mutableListOf<HueScene>()
+                var processedLights = 0
+                for ((sid, sObj) in scenesRaw) {
+                    var preview = 0
+                    try {
+                        val lightstates = sObj.optJSONObject("lightstates")
+                        if (lightstates != null) {
+                            var rLinearSum = 0.0
+                            var gLinearSum = 0.0
+                            var bLinearSum = 0.0
+                            var collectedCount = 0.0
+                            val lsKeys = lightstates.keys()
+                            while (lsKeys.hasNext()) {
+                                val lid = lsKeys.next()
+                                val lObj = lightstates.optJSONObject(lid) ?: continue
+                                val on = lObj.optBoolean("on", false)
+                                if (!on) continue
 
-                            val xyArr = lObj.optJSONArray("xy")
-                            if (xyArr != null && xyArr.length() >= 2) {
-                                val x = xyArr.optDouble(0, -1.0)
-                                val y = xyArr.optDouble(1, -1.0)
-                                val bri = lObj.optInt("bri", 254)
-                                if (x >= 0.0 && y > 0.0) {
-                                    argb = try { xyToArgb(x, y, bri, lightGamut) } catch (_: Exception) { null }
+                                var argb: Int? = null
+                                val lightGamut = try { _lights.value.find { it.id == lid }?.colorGamut } catch (_: Exception) { null }
+
+                                val xyArr = lObj.optJSONArray("xy")
+                                if (xyArr != null && xyArr.length() >= 2) {
+                                    val x = xyArr.optDouble(0, -1.0)
+                                    val y = xyArr.optDouble(1, -1.0)
+                                    val bri = lObj.optInt("bri", 254)
+                                    if (x >= 0.0 && y > 0.0) {
+                                        argb = try { xyToArgb(x, y, bri, lightGamut) } catch (_: Exception) { null }
+                                    }
                                 }
-                            }
 
-                            if (argb == null && lObj.has("hue")) {
-                                val hueVal = lObj.optInt("hue", -1)
-                                val satVal = lObj.optInt("sat", 254)
-                                val bri = lObj.optInt("bri", 254).coerceIn(1, 254)
-                                if (hueVal >= 0) {
-                                    val hueDeg = (hueVal.toFloat() * 360f / 65535f) % 360f
-                                    val satf = (satVal.toFloat() / 254f).coerceIn(0f, 1f)
-                                    val valf = (bri.toFloat() / 254f).coerceIn(0.01f, 1f)
-                                    try {
-                                        val tmpArgb = AndroidColor.HSVToColor(floatArrayOf(hueDeg, satf, valf))
-                                        val (tx, ty) = argbToXy(tmpArgb)
-                                        argb = try { xyToArgb(tx, ty, bri, lightGamut) } catch (_: Exception) { null }
-                                    } catch (_: Exception) { argb = null }
+                                if (argb == null && lObj.has("hue")) {
+                                    val hueVal = lObj.optInt("hue", -1)
+                                    val satVal = lObj.optInt("sat", 254)
+                                    val bri = lObj.optInt("bri", 254).coerceIn(1, 254)
+                                    if (hueVal >= 0) {
+                                        val hueDeg = (hueVal.toFloat() * 360f / 65535f) % 360f
+                                        val satf = (satVal.toFloat() / 254f).coerceIn(0f, 1f)
+                                        val valf = (bri.toFloat() / 254f).coerceIn(0.01f, 1f)
+                                        try {
+                                            val tmpArgb = AndroidColor.HSVToColor(floatArrayOf(hueDeg, satf, valf))
+                                            val (tx, ty) = argbToXy(tmpArgb)
+                                            argb = try { xyToArgb(tx, ty, bri, lightGamut) } catch (_: Exception) { null }
+                                        } catch (_: Exception) { argb = null }
+                                    }
                                 }
-                            }
 
-                            if (argb == null) {
-                                val ct = lObj.optInt("ct", -1)
-                                if (ct > 0) {
-                                    val rgb = ctToRgb(ct)
-                                    if (rgb != null) argb = 0xFF000000.toInt() or rgb
+                                if (argb == null) {
+                                    val ct = lObj.optInt("ct", -1)
+                                    if (ct > 0) {
+                                        val rgb = ctToRgb(ct)
+                                        if (rgb != null) argb = 0xFF000000.toInt() or rgb
+                                    }
                                 }
+
+                                if (argb == null) argb = 0xFFFFFFFF.toInt()
+
+                                val rr = ((argb shr 16) and 0xFF) / 255.0
+                                val gg = ((argb shr 8) and 0xFF) / 255.0
+                                val bb = (argb and 0xFF) / 255.0
+                                fun srgbToLinear(c: Double): Double = if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+
+                                val targetBri = lObj.optInt("bri", 254).coerceIn(1, 254)
+                                val weight = (targetBri / 254.0).pow(_previewGamma.value)
+
+                                rLinearSum += srgbToLinear(rr) * weight
+                                gLinearSum += srgbToLinear(gg) * weight
+                                bLinearSum += srgbToLinear(bb) * weight
+                                collectedCount += weight
+                                // periodically yield to avoid monopolizing Default dispatcher for long-running loops
+                                processedLights += 1
+                                if ((processedLights and 0x1F) == 0) {
+                                    try { yield() } catch (_: Exception) {}
+                                }
+                             }
+
+                            if (collectedCount > 0) {
+                                val inv = 1.0 / collectedCount
+                                val rLinAvg = rLinearSum * inv
+                                val gLinAvg = gLinearSum * inv
+                                val bLinAvg = bLinearSum * inv
+                                fun linearToSrgbByte(l: Double): Int {
+                                    val v = if (l <= 0.0031308) 12.92 * l else 1.055 * Math.pow(l, 1.0 / 2.4) - 0.055
+                                    return ((v * 255.0).coerceIn(0.0, 255.0)).toInt()
+                                }
+                                val rOut = linearToSrgbByte(rLinAvg)
+                                val gOut = linearToSrgbByte(gLinAvg)
+                                val bOut = linearToSrgbByte(bLinAvg)
+                                preview = (0xFF shl 24) or (rOut shl 16) or (gOut shl 8) or bOut
                             }
-
-                            if (argb == null) argb = 0xFFFFFFFF.toInt()
-
-                            val rr = ((argb shr 16) and 0xFF) / 255.0
-                            val gg = ((argb shr 8) and 0xFF) / 255.0
-                            val bb = (argb and 0xFF) / 255.0
-                            fun srgbToLinear(c: Double): Double = if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
-
-                            val targetBri = lObj.optInt("bri", 254).coerceIn(1, 254)
-                            val weight = (targetBri / 254.0).pow(_previewGamma.value)
-
-                            rLinearSum += srgbToLinear(rr) * weight
-                            gLinearSum += srgbToLinear(gg) * weight
-                            bLinearSum += srgbToLinear(bb) * weight
-                            collectedCount += weight
                         }
+                    } catch (_: Exception) {}
 
-                        if (collectedCount > 0) {
-                            val inv = 1.0 / collectedCount
-                            val rLinAvg = rLinearSum * inv
-                            val gLinAvg = gLinearSum * inv
-                            val bLinAvg = bLinearSum * inv
-                            fun linearToSrgbByte(l: Double): Int {
-                                val v = if (l <= 0.0031308) 12.92 * l else 1.055 * Math.pow(l, 1.0 / 2.4) - 0.055
-                                return ((v * 255.0).coerceIn(0.0, 255.0)).toInt()
-                            }
-                            val rOut = linearToSrgbByte(rLinAvg)
-                            val gOut = linearToSrgbByte(gLinAvg)
-                            val bOut = linearToSrgbByte(bLinAvg)
-                            preview = (0xFF shl 24) or (rOut shl 16) or (gOut shl 8) or bOut
-                        }
-                    }
-                } catch (_: Exception) {}
+                    val sName = sObj.optString("name", sid)
+                    val ownerRaw = sObj.optString("owner", "")
+                    val owner = ownerRaw.takeIf { it.isNotBlank() }
+                    updated.add(HueScene(id = sid, name = sName, owner = owner, previewArgb = preview))
+                }
 
-                val sName = sObj.optString("name", sid)
-                val ownerRaw = sObj.optString("owner", "")
-                val owner = ownerRaw.takeIf { it.isNotBlank() }
-                updated.add(HueScene(id = sid, name = sName, owner = owner, previewArgb = preview))
+                // update _scenes (MutableStateFlow is thread-safe)
+                _scenes.value = updated
+                val endTs = System.currentTimeMillis()
+                try { Log.d("HueViewModel", "recomputeScenePreviews end: $endTs duration=${endTs - startTs}ms scenes=${updated.size}") } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w("HueViewModel", "recomputeScenePreviews failed: ${e.message}")
+            } finally {
+                isRecomputing.set(false)
             }
-
-            // update _scenes on the main thread (fast, in memory)
-            _scenes.value = updated
-        } catch (e: Exception) {
-            Log.w("HueViewModel", "recomputeScenePreviews failed: ${e.message}")
         }
     }
 
@@ -225,14 +251,24 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
     private val connectivityManager: ConnectivityManager
     private val networkCallback: ConnectivityManager.NetworkCallback
     private val isRefreshing = AtomicBoolean(false)
+    private val isRecomputing = AtomicBoolean(false)
+    // Developer bypass: when true, heavy network refreshes and recompute are skipped
+    private val devBypass = AtomicBoolean(false)
+
+    // Enable/disable bypass at runtime for quick testing (call from UI or tests)
+    fun setDevBypass(enabled: Boolean) {
+        devBypass.set(enabled)
+        try { Log.d("HueViewModel", "devBypass set: $enabled") } catch (_: Exception) {}
+    }
 
     init {
         // Build OkHttp client with logging for debug
         val logger = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
         val dispatcher = Dispatcher().apply {
-            // allow higher concurrency for faster parallel updates to the bridge; tuned conservatively
-            maxRequests = 64
-            maxRequestsPerHost = 64
+            // Limit concurrency to avoid creating too many parallel requests which can cause
+            // CPU/Garbage-Collection pressure on constrained devices. 8 is a reasonable default.
+            maxRequests = 8
+            maxRequestsPerHost = 8
         }
         client = OkHttpClient.Builder().dispatcher(dispatcher).addInterceptor(logger).build()
 
@@ -252,7 +288,8 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
             val displayUser = user?.let { if (it.length > 6) it.take(3) + "..." + it.takeLast(3) else it }
             Log.d("HueViewModel", "init: bridgeIp=$ip username=${displayUser ?: "<none>"}")
         } catch (_: Exception) {}
-        updateConnectedState()
+        // Set initial connected flag but avoid triggering a refresh immediately during ViewModel init
+        _isConnected.value = !_bridgeIp.value.isNullOrEmpty() && !_hueUsername.value.isNullOrEmpty()
 
         // Setup network callback to detect connectivity changes and react immediately
         connectivityManager = appCtx.getSystemService(ConnectivityManager::class.java)
@@ -294,15 +331,39 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun updateConnectedState() {
-        val previouslyConnected = _isConnected.value
-        val connected = !_bridgeIp.value.isNullOrEmpty() && !_hueUsername.value.isNullOrEmpty()
-        _isConnected.value = connected
-
-        if (connected && !previouslyConnected) {
-            refreshHueState()
-        }
+    /**
+     * Load persisted bridge credentials (IP + username) into the ViewModel if they are not set.
+     * This helps actions that are triggered from UI flows where the ViewModel delayed network
+     * refreshes (e.g., Home screen) but the persisted credentials are available on disk.
+     */
+    fun loadPersistedCredentialsIfMissing() {
+        try {
+            if (!_bridgeIp.value.isNullOrEmpty() && !_hueUsername.value.isNullOrEmpty()) return
+            val appCtx = getApplication<Application>().applicationContext
+            val ip = HueSettingsStore.getBridgeIp(appCtx)
+            val user = HueSettingsStore.getHueUsername(appCtx)
+            if (!ip.isNullOrEmpty() && !user.isNullOrEmpty()) {
+                _bridgeIp.value = ip
+                _hueUsername.value = user
+                _isConnected.value = true
+                try { Log.d("HueViewModel", "loaded persisted credentials: ip=$ip user=${if (user.length>6) user.take(3)+"..."+user.takeLast(3) else user}") } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
     }
+
+    private fun updateConnectedState() {
+         val previouslyConnected = _isConnected.value
+         val connected = !_bridgeIp.value.isNullOrEmpty() && !_hueUsername.value.isNullOrEmpty()
+         _isConnected.value = connected
+
+         // Schedule a refresh on the IO dispatcher to avoid any chance of scheduling or
+         // heavy work on the main thread during view creation/navigation.
+         if (connected && !previouslyConnected) {
+             viewModelScope.launch(Dispatchers.IO) {
+                 try { forceRefreshHueState() } catch (e: Exception) { Log.w("HueViewModel", "refreshHueState scheduled failed: ${'$'}{e.message}") }
+             }
+         }
+     }
 
     /** Discover bridges using the official Hue discovery endpoint */
     fun discoverBridges() {
@@ -426,6 +487,10 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshHueState() {
+        if (devBypass.get()) {
+            try { Log.d("HueViewModel", "refreshHueState skipped due to devBypass") } catch (_: Exception) {}
+            return
+        }
         // Avoid concurrent refreshes
         if (!isRefreshing.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
@@ -460,9 +525,14 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
     // Move the previous refresh logic to an internal suspending function to keep the guard clean
     private suspend fun internalRefreshHueState() {
         withContext(Dispatchers.IO) {
-            val ip = _bridgeIp.value
-            val user = _hueUsername.value
-            if (ip.isNullOrEmpty() || user.isNullOrEmpty()) return@withContext
+             val ip = _bridgeIp.value
+             val user = _hueUsername.value
+             try {
+                val displayIp = ip ?: "<none>"
+                val displayUser = user?.let { if (it.length > 6) it.take(3) + "..." + it.takeLast(3) else it } ?: "<none>"
+                Log.d("HueViewModel", "internalRefreshHueState start: devBypass=${'$'}{devBypass.get()} ip=$displayIp user=$displayUser")
+             } catch (_: Exception) {}
+             if (ip.isNullOrEmpty() || user.isNullOrEmpty()) return@withContext
 
             try {
                 // 1) Fetch lights — use v1 API only (/api/<user>/lights)
@@ -535,6 +605,7 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
 
                 _lights.value = newLights
                 _groups.value = newGroups
+                try { Log.d("HueViewModel", "internalRefreshHueState: fetched lights=${'$'}{newLights.size} groups=${'$'}{newGroups.size}") } catch (_: Exception) {}
                 // Recompute scene previews after lights/groups changed so UI reflects new conversion/gamut
                 try { recomputeScenePreviews() } catch (_: Exception) {}
 
@@ -1014,6 +1085,22 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Quick reachability check: attempt to fetch all lights raw states and return true if
+     * we received a (possibly empty) JSON object map successfully. Returns false on network or auth errors.
+     */
+    suspend fun checkBridgeReachable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val ip = _bridgeIp.value ?: return@withContext false
+            val user = _hueUsername.value ?: return@withContext false
+            // A simple GET to /lights will either return a JSON object or throw on network/auth issues
+            val txt = try { getJson("http://$ip/api/$user/lights") } catch (e: Exception) { return@withContext false }
+            return@withContext txt.isNotBlank()
+        } catch (_: Exception) {
+            return@withContext false
+        }
+    }
+
     // Restore a light's state from a raw 'state' JSON object previously captured from the bridge.
     // This attempts to restore color (xy/hue/ct) and brightness, and finally the on/off flag.
     // If stateObj is null, the light will be turned off.
@@ -1155,5 +1242,50 @@ class HueViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
- // end of class
- }
+    /**
+     * Force-refresh the Hue state immediately, ignoring the devBypass flag.
+     * This is intended for explicit user-initiated actions (e.g., Test) where a one-shot
+     * refresh is desirable even if automatic background refreshes are currently suppressed.
+     */
+    fun forceRefreshHueState() {
+        viewModelScope.launch(Dispatchers.IO) {
+            // Temporarily disable devBypass for this one-shot force refresh so explicit user
+            // actions always attempt a network refresh even if background refreshes were suppressed.
+            val prev = devBypass.getAndSet(false)
+            try {
+                try {
+                    internalRefreshHueState()
+                } catch (e: Exception) {
+                    Log.w("HueViewModel", "forceRefreshHueState failed: ${'$'}{e.message}")
+                }
+            } finally {
+                devBypass.set(prev)
+            }
+        }
+    }
+
+    /**
+     * Force-refresh and wait until lights/groups are populated or timeout elapses. Returns true if lights/groups became available.
+     */
+    suspend fun forceRefreshHueStateAndWait(timeoutMs: Long = 2000L, pollMs: Long = 200L): Boolean {
+        return withContext(Dispatchers.IO) {
+            // Temporarily disable devBypass while we perform the synchronous refresh
+            val prev = devBypass.getAndSet(false)
+            try {
+                try {
+                    internalRefreshHueState()
+                } catch (_: Exception) {}
+            } finally {
+                devBypass.set(prev)
+            }
+
+            val start = System.currentTimeMillis()
+            while (System.currentTimeMillis() - start < timeoutMs) {
+                if ((_lights.value.isNotEmpty() || _groups.value.isNotEmpty())) return@withContext true
+                try { delay(pollMs) } catch (_: Exception) { break }
+            }
+            return@withContext (_lights.value.isNotEmpty() || _groups.value.isNotEmpty())
+        }
+    }
+
+}

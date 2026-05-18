@@ -1,0 +1,29 @@
+base_config: ml/configs/stress_baseline.yaml
+
+recovery_search:
+  # Explicit trial grid keeps runtime bounded and reproducible.
+  trials:
+    - { label_match_window_ms: 120000, max_label_age_ms: 600000, window_seconds: 30, step_seconds: 6 }
+    - { label_match_window_ms: 120000, max_label_age_ms: 600000, window_seconds: 45, step_seconds: 8 }
+    - { label_match_window_ms: 180000, max_label_age_ms: 600000, window_seconds: 45, step_seconds: 8 }
+    - { label_match_window_ms: 180000, max_label_age_ms: 900000, window_seconds: 60, step_seconds: 10 }
+  max_trials: 4
+  selection_metric_priority: ["auroc", "balanced_accuracy", "mcc", "pr_auc"]
+
+  # Search-time overrides to keep the sweep reasonably fast.
+  fast_overrides:
+    training:
+      epochs: 18
+      early_stopping_patience: 3
+      search_hidden_units:
+        - [96, 48]
+      search_dropout: [0.1]
+      search_learning_rate: [0.0005]
+      search_activation: [relu, gelu]
+      search_batch_norm: [true]
+      search_l2: [0.0001]
+      search_use_focal: [false]
+      search_focal_gamma: [2.0]
+      search_focal_alpha: [0.25]
+      search_seeds: [42]
+

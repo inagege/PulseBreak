@@ -82,15 +82,7 @@ internal fun HueColorScreen(
                             try { onDraftChanged(draft) } catch (_: Exception) {}
                             coroutineScope.launch {
                                 try {
-                                    val sd = settingsManager.loadInitialSettings()
-                                    val base = sd.hueAutomation
-                                    val updated = base.copy(
-                                        colorMode = draft.colorMode,
-                                        sceneId = draft.sceneId,
-                                        scenePreviewArgb = draft.scenePreviewArgb
-                                    )
-                                    val merged = sd.copy(hueAutomation = updated)
-                                    settingsManager.applySettings(merged)
+                                    settingsManager.applyHueAutomation(draft)
                                 } catch (_: Exception) {}
                             }
                         }
@@ -110,15 +102,7 @@ internal fun HueColorScreen(
                             try { onDraftChanged(draft) } catch (_: Exception) {}
                             coroutineScope.launch {
                                 try {
-                                    val sd = settingsManager.loadInitialSettings()
-                                    val base = sd.hueAutomation
-                                    val updated = base.copy(
-                                        colorMode = draft.colorMode,
-                                        sceneId = draft.sceneId,
-                                        scenePreviewArgb = draft.scenePreviewArgb
-                                    )
-                                    val merged = sd.copy(hueAutomation = updated)
-                                    settingsManager.applySettings(merged)
+                                    settingsManager.applyHueAutomation(draft)
                                 } catch (_: Exception) {}
                             }
                         }
@@ -162,11 +146,7 @@ internal fun HueColorScreen(
                             try { onDraftChanged(draft) } catch (_: Exception) {}
                             coroutineScope.launch {
                                 try {
-                                    val sd = settingsManager.loadInitialSettings()
-                                    val base = sd.hueAutomation
-                                    val updated = base.copy(colorArgb = draft.colorArgb, colorMode = draft.colorMode)
-                                    val merged = sd.copy(hueAutomation = updated)
-                                    settingsManager.applySettings(merged)
+                                    settingsManager.applyHueAutomation(draft)
                                 } catch (_: Exception) {}
                             }
                         } catch (_: Throwable) {
@@ -183,11 +163,7 @@ internal fun HueColorScreen(
                             try { onDraftChanged(draft) } catch (_: Exception) {}
                             coroutineScope.launch {
                                 try {
-                                    val sd = settingsManager.loadInitialSettings()
-                                    val base = sd.hueAutomation
-                                    val updated = base.copy(colorTemperature = draft.colorTemperature, colorMode = draft.colorMode)
-                                    val merged = sd.copy(hueAutomation = updated)
-                                    settingsManager.applySettings(merged)
+                                    settingsManager.applyHueAutomation(draft)
                                 } catch (_: Exception) {}
                             }
                         } catch (_: Throwable) {

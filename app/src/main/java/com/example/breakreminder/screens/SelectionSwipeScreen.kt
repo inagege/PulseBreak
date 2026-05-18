@@ -20,7 +20,8 @@ import com.google.accompanist.pager.rememberPagerState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
+import com.example.commonlibrary.SettingsData
 import com.example.breakreminder.sync.AppSettingsViewModel
 import com.google.accompanist.pager.ExperimentalPagerApi
 
@@ -31,19 +32,17 @@ fun SelectionSwipeScreen(
     onNavigateToYoga: () -> Unit = {},
     onNavigateToWalk: () -> Unit = {},
     onNavigateToNap: () -> Unit = {},
-    onNavigateToVent: () -> Unit = {},
-    onNavigateToCoffee: () -> Unit = {},
-    onNavigateToClean: () -> Unit = {}
+    onNavigateToVent: () -> Unit = {}
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     val activities = listOf(
         ActivityData("Yoga", Icons.Default.SelfImprovement),
         ActivityData("Walk", Icons.Default.DirectionsWalk),
         ActivityData("Nap", Icons.Default.Bed),
-        ActivityData("Vent", Icons.Default.Air),
-        ActivityData("Coffee", Icons.Default.LocalCafe),
-        ActivityData("Clean", Icons.Default.CleaningServices)
+        ActivityData("Vent", Icons.Default.Air)
     )
 
     val config = LocalConfiguration.current
@@ -61,13 +60,13 @@ fun SelectionSwipeScreen(
                     .size(20.dp)
                     .offset(y = 10.dp)
                     .align(Alignment.CenterHorizontally)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.HourglassBottom,
                     contentDescription = "Hourglass",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -94,8 +93,6 @@ fun SelectionSwipeScreen(
                                         "Walk" -> onNavigateToWalk()
                                         "Nap" -> onNavigateToNap()
                                         "Vent" -> onNavigateToVent()
-                                        "Coffee" -> onNavigateToCoffee()
-                                        "Clean" -> onNavigateToClean()
                                     }
                                 }
                             )
@@ -108,7 +105,7 @@ fun SelectionSwipeScreen(
                         Icon(
                             imageVector = activity.icon,
                             contentDescription = activity.name,
-                            tint = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                            tint = if (settings.isDarkMode) buttonColor else buttonTextColor,
                             modifier = Modifier.size(100.dp)
                         )
                         Spacer(modifier = Modifier.height(10.dp))
@@ -116,7 +113,7 @@ fun SelectionSwipeScreen(
                             text = activity.name,
                             fontSize = 20.sp,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
-                            color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor)
+                            color = if (settings.isDarkMode) buttonColor else buttonTextColor
                         )
                     }
                 }

@@ -1,21 +1,39 @@
 package com.example.breakreminder.screens
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.breakreminder.sync.AppSettingsViewModel
+import com.example.commonlibrary.SettingsData
 
 @Composable
 fun AppNavigation(
     viewModel: AppSettingsViewModel,
+    openBreakStartOnLaunch: Boolean = false,
+    onBreakStartLaunchConsumed: (() -> Unit)? = null
 ) {
 
     val navController = rememberNavController()
-    // Setup Screen no longer needed as Permissions are requested with the Start of the APP
-    val startDestination = "default_screen" //if (firstStart) "setup_screen" else "home_screen"
+    // Keep start destination stable for the lifetime of this NavHost instance.
+    // Otherwise, flipping openBreakStartOnLaunch back to false can rebuild the graph and
+    // bounce the UI back to default_screen shortly after opening home_screen.
+    val startDestination = remember {
+        if (openBreakStartOnLaunch) "home_screen" else "default_screen"
+    }
+
+    LaunchedEffect(openBreakStartOnLaunch) {
+        if (!openBreakStartOnLaunch) return@LaunchedEffect
+        navController.navigate("home_screen") {
+            launchSingleTop = true
+            popUpTo("default_screen") { inclusive = true }
+        }
+        onBreakStartLaunchConsumed?.invoke()
+    }
 
     NavHost(
         navController = navController,
@@ -52,8 +70,8 @@ fun AppNavigation(
 
         // HomeScreen
         composable("home_screen") {
-            // Collect state here, in the composable scope
-            val settings by viewModel.settings.collectAsStateWithLifecycle()
+            // Collect state here, in the composable scope (use a safe initial value)
+            val settings by viewModel.settings.collectAsState(initial = SettingsData())
 
             HomeScreen(
                 viewModel,
@@ -66,6 +84,11 @@ fun AppNavigation(
                         navController.navigate("selection_screen")
                     } else {
                         navController.navigate("selection_swipe_screen")
+                    }
+                },
+                onReturnToMonitoring = {
+                    navController.navigate("default_screen") {
+                        popUpTo("default_screen") { inclusive = true }
                     }
                 }
             )
@@ -88,14 +111,8 @@ fun AppNavigation(
                 onNavigateToVent = {
                     navController.navigate("air_start")
                 },
-                onNavigateToCoffee = {
-                    navController.navigate("coffee_prompt")
-                },
                 onNavigateToYoga = {
                     navController.navigate("yoga_screen")
-                },
-                onNavigateToClean = {
-                    navController.navigate("cleaning_prompt")
                 },
                 onNavigateToWalk = {
                     navController.navigate("walk_start")
@@ -115,14 +132,8 @@ fun AppNavigation(
                 onNavigateToVent = {
                     navController.navigate("air_start")
                 },
-                onNavigateToCoffee = {
-                    navController.navigate("coffee_prompt")
-                },
                 onNavigateToYoga = {
                     navController.navigate("yoga_screen")
-                },
-                onNavigateToClean = {
-                    navController.navigate("cleaning_prompt")
                 },
                 onNavigateToWalk = {
                     navController.navigate("walk_start")

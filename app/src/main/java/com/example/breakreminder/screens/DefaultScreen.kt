@@ -13,10 +13,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.HeartRateReader
 import com.example.breakreminder.sync.AppSettingsViewModel
-import kotlinx.coroutines.delay
+import com.example.breakreminder.background.BreakCause
+import com.example.breakreminder.background.BreakNotificationHelper
+import com.example.breakreminder.background.BreakSessionStateStore
+import com.example.commonlibrary.SettingsData
+import com.example.commonlibrary.WearSyncHelper
+import com.example.breakreminder.stress.StressFeedbackConfig
+import com.example.breakreminder.stress.StressFeedbackStore
 
 @Composable
 fun DefaultScreen(
@@ -24,16 +29,39 @@ fun DefaultScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToSettings: () -> Unit,
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+
+    val stopwatchMillis by viewModel.stopwatchMillis.collectAsState(initial = 0L)
 
     val context = LocalContext.current
     var isActive by remember { mutableStateOf(true) }
+    val latestSettings by rememberUpdatedState(settings)
+    val feedbackStore = remember(context) { StressFeedbackStore(context) }
+
+    // Remember whether we've already triggered navigation to avoid double-calls
+    var navigationTriggered by remember { mutableStateOf(false) }
 
     val heartRateReader = remember {
         HeartRateReader(
             context = context,
             shouldTriggerNavigation = { isActive },
-            onNavigateToHome = onNavigateToHome
+            feedbackConfigProvider = {
+                StressFeedbackConfig(
+                    feedbackPromptEnabled = latestSettings.feedbackPromptEnabled,
+                    personalizationEnabled = latestSettings.personalizationEnabled
+                )
+            },
+            onStressFeedbackPromptRequested = { prediction ->
+                feedbackStore.setPendingPrompt(
+                    adjustedScore = prediction.adjustedScore,
+                    personalizationEnabled = latestSettings.personalizationEnabled
+                )
+            },
+            autoNavigateOnFeedbackPrompt = true,
+            settingsProvider = { latestSettings },
+            onNavigateToHome = {
+                try { onNavigateToHome() } catch (_: Exception) {}
+            }
         )
     }
 
@@ -41,61 +69,46 @@ fun DefaultScreen(
         heartRateReader.startReading()
         onDispose {
             isActive = false
+            // Stop the sensor listener only — do not stop the ViewModel-level stopwatch here.
             heartRateReader.stopReading()
         }
     }
 
-    // When the default screen appears, request the companion to restore any previewed lights
+    // Ensure the stopwatch (managed by ViewModel) is running when this screen appears
     LaunchedEffect(Unit) {
+        viewModel.startStopwatch()
+        // Restart other session state when the composable enters composition
         HeartRateReader.sendHueRestoreMessage(context)
     }
 
-    // Timer: compute configured interval from settings and run a countdown while DefaultScreen is active
-    val configuredIntervalMillis = remember(settings.breakIntervalHours, settings.breakIntervalMinutes) {
-        (settings.breakIntervalHours * 60 * 60 * 1000L) + (settings.breakIntervalMinutes * 60 * 1000L)
-    }
+    // Watch stopwatch + settings and navigate to Home when configured interval is exceeded
+    LaunchedEffect(stopwatchMillis, settings.scheduleBreakIntervals, settings.breakIntervalHours, settings.breakIntervalMinutes) {
+        if (navigationTriggered) return@LaunchedEffect
+        if (!settings.scheduleBreakIntervals) return@LaunchedEffect
 
-    // remaining time state
-    var remainingMillis by remember { mutableStateOf(configuredIntervalMillis) }
+        // Combine hours + minutes from settings into a total interval in milliseconds
+        val totalMinutes = settings.breakIntervalHours * 60 + settings.breakIntervalMinutes
+        if (totalMinutes <= 0) return@LaunchedEffect // treat as not set
 
-    // Reset timer whenever we enter the DefaultScreen or the configured interval changes
-    LaunchedEffect(key1 = configuredIntervalMillis) {
-        // If the user changed the interval to a smaller value than remaining, trigger immediately
-        if (configuredIntervalMillis < remainingMillis) {
-            try {
-                onNavigateToHome()
-            } catch (_: Exception) {}
-            // reset remaining for next time (navigation will usually dispose this composable)
-            remainingMillis = configuredIntervalMillis
-            return@LaunchedEffect
-        }
-        // otherwise reset the timer to the new configured interval
-        remainingMillis = configuredIntervalMillis
-    }
-
-    // Countdown loop
-    LaunchedEffect(key1 = isActive, key2 = configuredIntervalMillis) {
-        if (!isActive) return@LaunchedEffect
-        // initialize remaining if zero
-        if (remainingMillis <= 0L) remainingMillis = configuredIntervalMillis
-        var lastTime = System.currentTimeMillis()
-        while (isActive) {
-            val now = System.currentTimeMillis()
-            val elapsed = now - lastTime
-            lastTime = now
-            remainingMillis = (remainingMillis - elapsed).coerceAtLeast(0L)
-            if (remainingMillis <= 0L) {
-                // timer expired -> trigger HomeScreen and reset
-                try {
-                    onNavigateToHome()
-                } catch (_: Exception) {}
-                remainingMillis = configuredIntervalMillis
-                break
+        val thresholdMillis = totalMinutes * 60 * 1000L
+        if (stopwatchMillis >= thresholdMillis) {
+            navigationTriggered = true
+            var ok = false
+            try { ok = WearSyncHelper.sendSettingsAndAwait(context, settings, includeSchedule = false, includeHue = true, timeoutMs = 3000L) } catch (_: Exception) {}
+            if (!ok) {
+                // fallback: try fire-and-forget
+                try { WearSyncHelper.sendSettings(context, settings, includeSchedule = false, includeHue = true) } catch (_: Exception) {}
+                try { kotlinx.coroutines.delay(600L) } catch (_: Exception) {}
             }
-            // tick every second
-            delay(1000L)
+            try { BreakNotificationHelper.showBreakStartNotification(context, BreakCause.INTERVAL) } catch (_: Exception) {}
+            try { BreakSessionStateStore.markSessionStarted(context) } catch (_: Exception) {}
+            try { WearSyncHelper.sendSessionState(context, true) } catch (_: Exception) {}
+            try { onNavigateToHome() } catch (_: Exception) {}
         }
     }
+
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     Scaffold(
         topBar = {
@@ -108,8 +121,8 @@ fun DefaultScreen(
                 FilledIconButton(
                     onClick = { onNavigateToSettings() },
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = Color(settings.buttonColor),
-                        contentColor = Color(settings.buttonTextColor)
+                        containerColor = buttonColor,
+                        contentColor = buttonTextColor
                     ),
                     modifier = Modifier.size(40.dp)
                 ) {
@@ -128,19 +141,19 @@ fun DefaultScreen(
             end = innerPadding.calculateEndPadding(LayoutDirection.Ltr)
         )
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(adjustedPadding),
-            contentAlignment = Alignment.Center
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(adjustedPadding)
         ) {
             Text(
-                text = "Your heart rate is being measured. You will get notifications if a pause is recommended.",
+                text = "Your physiological signals are being measured. You will get notifications if a pause is recommended.",
                 fontSize = 18.sp,
                 lineHeight = 20.sp,
-                color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.width(195.dp)
+                modifier = Modifier
+                    .width(195.dp)
+                    .align(Alignment.Center)
             )
         }
     }

@@ -13,11 +13,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.R
 import com.skydoves.landscapist.glide.GlideImage
 import kotlinx.coroutines.delay
 import com.example.breakreminder.sync.AppSettingsViewModel
+import androidx.compose.runtime.collectAsState
+import com.example.commonlibrary.SettingsData
 
 /**
  * 1) CoffeePromptScreen
@@ -30,7 +31,9 @@ fun CoffeePromptScreen(
     viewModel: AppSettingsViewModel,
     onStartMachine: () -> Unit = {}
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     Scaffold { innerPadding ->
         Column(
@@ -45,13 +48,13 @@ fun CoffeePromptScreen(
                 modifier = Modifier
                     .size(20.dp)
                     .offset(y = 10.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Coffee,
                     contentDescription = "Coffee Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -62,7 +65,7 @@ fun CoffeePromptScreen(
             Text(
                 text = "How about a coffee break?",
                 fontSize = 24.sp,
-                color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -73,8 +76,8 @@ fun CoffeePromptScreen(
             ElevatedButton(
                 onClick = { onStartMachine() },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(settings.buttonColor),
-                    contentColor = Color(settings.buttonTextColor)
+                    containerColor = buttonColor,
+                    contentColor = buttonTextColor
                 ),
                 modifier = Modifier
                     .width(170.dp)
@@ -97,7 +100,9 @@ fun CoffeeVideoScreen(
     viewModel: AppSettingsViewModel,
     onFinishCoffeeVideo: () -> Unit = {}
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     var playCount by remember { mutableStateOf(0) }
     var elapsedTime by remember { mutableStateOf(0L) }
@@ -131,13 +136,13 @@ fun CoffeeVideoScreen(
                 modifier = Modifier
                     .offset(y = 10.dp)
                     .size(20.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Coffee,
                     contentDescription = "Coffee Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -163,7 +168,9 @@ fun CoffeeScreen(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     Scaffold { innerPadding ->
         Column(
@@ -178,13 +185,13 @@ fun CoffeeScreen(
                 modifier = Modifier
                     .offset(y = 10.dp)
                     .size(20.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Coffee,
                     contentDescription = "Coffee Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -194,7 +201,7 @@ fun CoffeeScreen(
             Text(
                 text = "Your coffee is ready!",
                 fontSize = 24.sp,
-                color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -204,8 +211,8 @@ fun CoffeeScreen(
             ElevatedButton(
                 onClick = { onBackToHome() },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(settings.buttonColor),
-                    contentColor = Color(settings.buttonTextColor)
+                    containerColor = buttonColor,
+                    contentColor = buttonTextColor
                 ),
                 modifier = Modifier
                     .width(170.dp)

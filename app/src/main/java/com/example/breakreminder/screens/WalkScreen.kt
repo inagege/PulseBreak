@@ -1,5 +1,7 @@
 package com.example.breakreminder.screens
 
+import androidx.compose.ui.platform.LocalContext
+import com.example.breakreminder.HeartRateReader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -12,18 +14,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.R
 import com.example.breakreminder.sync.AppSettingsViewModel
 import com.skydoves.landscapist.glide.GlideImage
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.collectAsState
+import com.example.commonlibrary.SettingsData
 
 @Composable
 fun WalkStartScreen(
     viewModel: AppSettingsViewModel,
     onStartWalk: () -> Unit = {}  // Navigation callback
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val walkDurationMinutes = settings.walkBreakDurationMinutes.coerceAtLeast(1)
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
 
     Scaffold { innerPadding ->
@@ -38,13 +44,13 @@ fun WalkStartScreen(
                 modifier = Modifier
                     .size(20.dp)
                     .offset(y = 10.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.DirectionsWalk,
                     contentDescription = "Walk Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -52,9 +58,9 @@ fun WalkStartScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Ready to take a 5-minute walk?",
+                text = "Ready to take a ${walkDurationMinutes}-minute walk?",
                 fontSize = 18.sp,
-                color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -64,7 +70,7 @@ fun WalkStartScreen(
             Icon(
                 imageVector = Icons.Default.DirectionsWalk,
                 contentDescription = "Walking Icon",
-                tint = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                tint = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 modifier = Modifier.size(40.dp)
             )
 
@@ -73,8 +79,8 @@ fun WalkStartScreen(
             ElevatedButton(
                 onClick = { onStartWalk() },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(settings.buttonColor),
-                    contentColor = Color(settings.buttonTextColor)
+                    containerColor = buttonColor,
+                    contentColor = buttonTextColor
                 ),
                 modifier = Modifier
                     .width(170.dp)
@@ -93,18 +99,21 @@ fun WalkScreen(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}  // Callback when walk ends
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val context = LocalContext.current
+    val walkDurationMinutes = settings.walkBreakDurationMinutes.coerceAtLeast(1)
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
-
-    var remainingTime by remember { mutableStateOf(5 * 60) } // 5-minute countdown
-    var isFinished by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
+    var remainingTime by remember(walkDurationMinutes) { mutableStateOf(walkDurationMinutes * 60) }
+    LaunchedEffect(walkDurationMinutes) {
+        remainingTime = walkDurationMinutes * 60
         while (remainingTime > 0) {
             delay(1000)
             remainingTime--
         }
-        isFinished = true
+        try { HeartRateReader.sendHueRestoreMessage(context) } catch (_: Exception) {}
+        try { onBackToHome() } catch (_: Exception) {}
     }
 
     val minutes = remainingTime / 60
@@ -122,13 +131,13 @@ fun WalkScreen(
                 modifier = Modifier
                     .size(20.dp)
                     .offset(y = 10.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.DirectionsWalk,
                     contentDescription = "Walk Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -138,7 +147,7 @@ fun WalkScreen(
             Text(
                 text = "Time left: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}",
                 fontSize = 18.sp,
-                color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -155,10 +164,13 @@ fun WalkScreen(
             Spacer(modifier = Modifier.height(5.dp))
 
             ElevatedButton(
-                onClick = { onBackToHome() },
+                onClick = {
+                    try { HeartRateReader.sendHueRestoreMessage(context) } catch (_: Exception) {}
+                    onBackToHome()
+                },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(settings.buttonColor),
-                    contentColor = Color(settings.buttonTextColor)
+                    containerColor = buttonColor,
+                    contentColor = buttonTextColor
                 ),
                 modifier = Modifier
                     .width(170.dp)

@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.example.companionpulsebreak.sync.HueViewModel
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
 
@@ -24,7 +24,7 @@ fun HueConnectScreen(
     modifier: Modifier = Modifier
 ) {
     val settingsViewModel: CompanionSettingsViewModel = viewModel()
-    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
+    val settings by settingsViewModel.settings.collectAsState(initial = com.example.commonlibrary.SettingsData())
 
     val isConnected by hueViewModel.isConnected.collectAsState()
     val bridgeIp by hueViewModel.bridgeIp.collectAsState()
@@ -53,7 +53,8 @@ fun HueConnectScreen(
             modifier = Modifier.size(72.dp)
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Text("Philips Hue bridge", style = MaterialTheme.typography.titleLarge, color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor))
+        val bridgeTitleColor = if (settings.isDarkMode) runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) } else runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
+        Text("Philips Hue bridge", style = MaterialTheme.typography.titleLarge, color = bridgeTitleColor)
         Spacer(modifier = Modifier.height(8.dp))
 
         var manualIp by remember { mutableStateOf("") }

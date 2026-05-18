@@ -4,6 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 
 object WearSyncHelper {
     private const val SETTINGS_PATH = "/settings"
@@ -14,7 +17,13 @@ object WearSyncHelper {
      * Send settings to the paired device. By default schedule and hue fields are omitted
      * to avoid accidental overwrites; callers can opt-in to include them.
      */
-    fun sendSettings(context: Context, settings: SettingsData, includeSchedule: Boolean = false, includeHue: Boolean = false) {
+    fun sendSettings(
+        context: Context,
+        settings: SettingsData,
+        includeSchedule: Boolean = false,
+        includeHue: Boolean = false,
+        includeActivityDurations: Boolean = false
+    ) {
         Log.d(TAG, "Sending settings from ${context.packageName}: $settings includeSchedule=$includeSchedule includeHue=$includeHue")
         val dataClient = Wearable.getDataClient(context)
 
@@ -25,6 +34,8 @@ object WearSyncHelper {
             dataMap.putInt("buttonColor", settings.buttonColor)
             dataMap.putInt("buttonTextColor", settings.buttonTextColor)
             dataMap.putString("screenSelection", settings.screenSelection)
+            dataMap.putBoolean("feedbackPromptEnabled", settings.feedbackPromptEnabled)
+            dataMap.putBoolean("personalizationEnabled", settings.personalizationEnabled)
 
             if (includeSchedule) {
                 dataMap.putBoolean("scheduleBreakIntervals", settings.scheduleBreakIntervals)
@@ -32,6 +43,13 @@ object WearSyncHelper {
                 dataMap.putInt("breakIntervalMinutes", settings.breakIntervalMinutes)
                 // mark explicit schedule update
                 dataMap.putBoolean("schedule_update", true)
+            }
+
+            if (includeActivityDurations) {
+                dataMap.putInt("walkBreakDurationMinutes", settings.walkBreakDurationMinutes)
+                dataMap.putInt("napBreakDurationMinutes", settings.napBreakDurationMinutes)
+                dataMap.putInt("windowBreakDurationMinutes", settings.windowBreakDurationMinutes)
+                dataMap.putBoolean("activity_duration_update", true)
             }
 
             if (includeHue) {
@@ -65,6 +83,89 @@ object WearSyncHelper {
         dataClient.putDataItem(request)
             .addOnSuccessListener { Log.d(TAG, "Settings sent successfully: ${it.uri}") }
             .addOnFailureListener { e -> Log.e(TAG, "Failed to send settings", e) }
+    }
+
+    /**
+     * Suspends until the DataItem put for settings either succeeds or times out.
+     * Returns true on success, false on failure/timeout.
+     */
+    suspend fun sendSettingsAndAwait(
+        context: Context,
+        settings: SettingsData,
+        includeSchedule: Boolean = false,
+        includeHue: Boolean = false,
+        includeActivityDurations: Boolean = false,
+        timeoutMs: Long = 3000L
+    ): Boolean {
+        Log.d(TAG, "Sending settings (await) from ${context.packageName}: $settings includeSchedule=$includeSchedule includeHue=$includeHue")
+        val dataClient = Wearable.getDataClient(context)
+
+        // Build request same as non-suspending sendSettings
+        val putMap = PutDataMapRequest.create(SETTINGS_PATH)
+        putMap.apply {
+            dataMap.putBoolean("isDarkMode", settings.isDarkMode)
+            dataMap.putInt("buttonColor", settings.buttonColor)
+            dataMap.putInt("buttonTextColor", settings.buttonTextColor)
+            dataMap.putString("screenSelection", settings.screenSelection)
+            dataMap.putBoolean("feedbackPromptEnabled", settings.feedbackPromptEnabled)
+            dataMap.putBoolean("personalizationEnabled", settings.personalizationEnabled)
+
+            if (includeSchedule) {
+                dataMap.putBoolean("scheduleBreakIntervals", settings.scheduleBreakIntervals)
+                dataMap.putInt("breakIntervalHours", settings.breakIntervalHours)
+                dataMap.putInt("breakIntervalMinutes", settings.breakIntervalMinutes)
+                // mark explicit schedule update
+                dataMap.putBoolean("schedule_update", true)
+            }
+
+            if (includeActivityDurations) {
+                dataMap.putInt("walkBreakDurationMinutes", settings.walkBreakDurationMinutes)
+                dataMap.putInt("napBreakDurationMinutes", settings.napBreakDurationMinutes)
+                dataMap.putInt("windowBreakDurationMinutes", settings.windowBreakDurationMinutes)
+                dataMap.putBoolean("activity_duration_update", true)
+            }
+
+            if (includeHue) {
+                val hue = settings.hueAutomation
+                dataMap.putStringArrayList("hue_lightIds", ArrayList(hue.lightIds))
+                dataMap.putStringArrayList("hue_groupIds", ArrayList(hue.groupIds))
+                dataMap.putInt("hue_brightness", hue.brightness)
+                dataMap.putInt("hue_colorArgb", hue.colorArgb)
+                dataMap.putInt("hue_colorTemperature", hue.colorTemperature)
+                if (hue.sceneId != null) dataMap.putString("hue_sceneId", hue.sceneId)
+                dataMap.putString("hue_colorMode", hue.colorMode.name)
+                dataMap.putInt("hue_scenePreviewArgb", hue.scenePreviewArgb)
+                dataMap.putBoolean("hue_update", true)
+            }
+
+            // Ensure change is noticed by adding a timestamp
+            dataMap.putLong("updatedAt", System.currentTimeMillis())
+        }
+
+        val request = putMap.asPutDataRequest().setUrgent()
+
+        // Attempt to put data and suspend until completion or timeout
+        return try {
+            val ok = withTimeoutOrNull(timeoutMs) {
+                suspendCancellableCoroutine<Boolean> { cont ->
+                    try {
+                        dataClient.putDataItem(request)
+                            .addOnSuccessListener { cont.resume(true) }
+                            .addOnFailureListener { e ->
+                                Log.w(TAG, "Failed to send settings (await): ${e.message}")
+                                cont.resume(false)
+                            }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "putDataItem threw: ${e.message}")
+                        if (!cont.isCompleted) cont.resume(false)
+                    }
+                }
+            }
+            ok == true
+        } catch (e: Exception) {
+            Log.w(TAG, "sendSettingsAndAwait exception: ${e.message}")
+            false
+        }
     }
 
     /**

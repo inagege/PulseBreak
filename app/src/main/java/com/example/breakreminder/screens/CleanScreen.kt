@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.breakreminder.R
 import com.example.breakreminder.sync.AppSettingsViewModel
+import com.example.commonlibrary.SettingsData
 import com.skydoves.landscapist.glide.GlideImage
 import kotlinx.coroutines.delay
 
@@ -29,7 +30,9 @@ fun CleaningPromptScreen(
     viewModel: AppSettingsViewModel,
     onStartCleaning: () -> Unit = {}
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     Scaffold { innerPadding ->
         Column(
@@ -44,13 +47,13 @@ fun CleaningPromptScreen(
                 modifier = Modifier
                     .size(20.dp)
                     .offset(y = 10.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.CleaningServices,
                     contentDescription = "Cleaning Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -61,7 +64,7 @@ fun CleaningPromptScreen(
             Text(
                 text = "Tidy up and\nlet it shine!",
                 fontSize = 24.sp,
-                color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -72,8 +75,8 @@ fun CleaningPromptScreen(
             ElevatedButton(
                 onClick = { onStartCleaning() },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(settings.buttonColor),
-                    contentColor = Color(settings.buttonTextColor)
+                    containerColor = buttonColor,
+                    contentColor = buttonTextColor
                 ),
                 modifier = Modifier
                     .width(170.dp)
@@ -157,7 +160,9 @@ fun CleaningScreen(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     Scaffold { innerPadding ->
         Column(
@@ -172,13 +177,13 @@ fun CleaningScreen(
                 modifier = Modifier
                     .offset(y = 10.dp)
                     .size(20.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
+                    .background(buttonColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.CleaningServices,
                     contentDescription = "Cleaning Icon",
-                    tint = Color(settings.buttonTextColor),
+                    tint = buttonTextColor,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -188,7 +193,7 @@ fun CleaningScreen(
             Text(
                 text = "Bravo, cleaning done!",
                 fontSize = 24.sp,
-                color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -198,8 +203,8 @@ fun CleaningScreen(
             ElevatedButton(
                 onClick = { onBackToHome() },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(settings.buttonColor),
-                    contentColor = Color(settings.buttonTextColor)
+                    containerColor = buttonColor,
+                    contentColor = buttonTextColor
                 ),
                 modifier = Modifier
                     .width(170.dp)

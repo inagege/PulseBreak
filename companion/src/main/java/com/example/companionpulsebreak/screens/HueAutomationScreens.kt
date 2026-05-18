@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.commonlibrary.HueAutomationData
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
@@ -30,6 +30,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.rotate
 import org.json.JSONObject
@@ -41,18 +46,31 @@ import org.json.JSONObject
  * for clarity: `HueLightSelectionScreens.kt`, `HueBrightnessScreen.kt`, `HueSceneScreens.kt`.
  */
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun HueAutomationHomeScreen(
     settingsManager: SettingsManager,
+    modifier: Modifier = Modifier,
     settingsViewModel: CompanionSettingsViewModel = viewModel(),
     hueViewModel: HueViewModel = viewModel(),
     onBack: () -> Unit = {},
-    onNoConnection: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onNoConnection: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var screen by rememberSaveable { mutableStateOf("home") }
+
+    // Ensure developer bypass is disabled when this screen is composed so background
+    // refreshes are not accidentally skipped (fixes case where devBypass remained true).
+    LaunchedEffect(Unit) {
+        try { hueViewModel.setDevBypass(false) } catch (_: Exception) {}
+    }
+
+    LaunchedEffect(screen) {
+        try { Log.d("HueAutomation", "screen changed -> $screen at ${System.currentTimeMillis()}") } catch (_: Exception) {}
+        // NOTE: debug devBypass toggling removed to avoid accidentally skipping refreshes when
+        // navigating quickly between screens. Leaving the bypass enabled could cause the
+        // detail screens to show empty state (observed in logs as "skipped due to devBypass").
+    }
     val settingsFlow by remember { mutableStateOf(settingsManager.settingsFlow) }
     var hueSettings by remember { mutableStateOf(HueAutomationData()) }
     // remember last persisted value to avoid re-writing immediately after load
@@ -62,7 +80,8 @@ fun HueAutomationHomeScreen(
     // immediately overwrite persisted settings with the empty draft.
     LaunchedEffect(settingsFlow) {
         try {
-            val sd = settingsManager.loadInitialSettings()
+            // perform the initial DataStore read on IO to avoid blocking the UI/main coroutine
+            val sd = withContext(kotlinx.coroutines.Dispatchers.IO) { settingsManager.loadInitialSettings() }
             val persisted = sd.hueAutomation
             // only seed the draft if nothing was edited yet
             if (hueSettings.lightIds.isEmpty() && hueSettings.groupIds.isEmpty()) {
@@ -70,63 +89,91 @@ fun HueAutomationHomeScreen(
             }
             lastPersisted = persisted
             Log.d("HueAutomation", "initial persisted hueAutomation: lights=${persisted.lightIds} groups=${persisted.groupIds}")
-        } catch (e: Exception) {
-            Log.w("HueAutomation", "failed to load initial settings: ${e.message}")
+        } catch (_: Exception) {
+            Log.w("HueAutomation", "failed to load initial settings")
         }
     }
 
-    // Persist hueSettings automatically whenever it changes (debounced by lastPersisted comparison).
-    LaunchedEffect(hueSettings) {
-        // Do not persist until we have loaded the initial persisted settings (lastPersisted will be non-null).
-        if (lastPersisted == null) return@LaunchedEffect
-        // If nothing changed compared to the persisted copy, skip the save.
-        if (hueSettings == lastPersisted) return@LaunchedEffect
-
-        // launch a background save; update lastPersisted when done.
-        scope.launch {
-            try {
-                val sd = settingsManager.loadInitialSettings()
-                val merged = sd.copy(hueAutomation = hueSettings)
-                settingsManager.applySettings(merged)
-                lastPersisted = hueSettings
-            } catch (_: Exception) {
-                // ignore save failures for now
-            }
-        }
+    // Persist hueSettings automatically whenever it changes — debounce rapid UI changes to avoid writes/ANRs.
+    LaunchedEffect(Unit) {
+        // Wait until initial persisted value loaded
+        snapshotFlow { lastPersisted }.filterNotNull().first()
     }
 
-    // ensure we refresh when the screen appears and we're connected
-    val isConnected by hueViewModel.isConnected.collectAsState()
-    // Avoid repeatedly invoking onNoConnection during transient recompositions — call it once per disconnect.
-    val hasNotifiedNoConnection = remember { mutableStateOf(false) }
-    LaunchedEffect(isConnected) {
-        if (isConnected) {
-            // reset notification flag when we regain connection
-            hasNotifiedNoConnection.value = false
-            // initial immediate refresh
-            hueViewModel.refreshHueState()
-            // then periodically refresh to detect network loss while the screen is visible
-            while (true) {
+    LaunchedEffect(Unit) {
+        // Collect changes to hueSettings, debounce user interactions, then persist in IO dispatcher
+        snapshotFlow { hueSettings }
+            .debounce(500) // wait for 500ms of quiet before saving
+            .filter { lastPersisted != null } // ensure initial load done
+            .collect { newDraft ->
+                if (newDraft == lastPersisted) return@collect
                 try {
-                    delay(6000)
-                    hueViewModel.refreshHueState()
-                } catch (t: Throwable) {
-                    // ignore and allow outer catch in viewmodel to set isConnected=false
+                    // perform saving using the lightweight hue-only helper to avoid blocking full reads
+                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        settingsManager.applyHueAutomation(newDraft)
+                    }
+                    lastPersisted = newDraft
+                } catch (_: Exception) {
+                    // ignore save failures for now
                 }
             }
-        } else {
-            // if not connected, inform caller once so they can navigate to the Hue screens
+    }
+
+    // ensure we refresh when the hue sub-screens are visible and we're connected
+    // NOTE: avoid triggering refresh work while the Home screen is visible to prevent UI freezes
+    val isConnected by hueViewModel.isConnected.collectAsState()
+    val hasNotifiedNoConnection = remember { mutableStateOf(false) }
+    LaunchedEffect(screen, isConnected) {
+        // If we're navigating to any of the detail screens, proactively try to load
+        // persisted bridge credentials and trigger a short forced refresh so the
+        // `lights`/`groups` flows are populated for the detail UIs. Previously we
+        // returned early when `isConnected` was false which could happen before the
+        // ViewModel had loaded persisted credentials; that made the detail screens
+        // show empty state even when credentials existed on disk.
+        if (screen == "lights" || screen == "brightness" || screen == "color") {
+            try { hueViewModel.setDevBypass(false) } catch (_: Exception) {}
+            try { hueViewModel.loadPersistedCredentialsIfMissing() } catch (_: Exception) {}
+            try {
+                // Start a background force refresh (non-blocking)
+                hueViewModel.forceRefreshHueState()
+                // Also attempt a short wait for the refresh to populate lights/groups so
+                // the detail screens can render immediately. This is best-effort and will
+                // time out quickly if the bridge is unreachable.
+                try { kotlinx.coroutines.withTimeout(2000) { hueViewModel.forceRefreshHueStateAndWait(1500, 200) } } catch (_: Exception) {}
+            } catch (_: Exception) {}
+        }
+
+        // After attempting to seed credentials/refresh, fall back to the existing
+        // connected-check behavior and show a notification if no bridge info is present.
+        if (!isConnected) {
             if (!hasNotifiedNoConnection.value) {
                 hasNotifiedNoConnection.value = true
                 onNoConnection()
             }
+            return@LaunchedEffect
+        }
+
+        // Only run periodic refreshes while on one of the Hue detail screens (not the Home list)
+        if (screen == "lights" || screen == "brightness" || screen == "color") {
+            hasNotifiedNoConnection.value = false
+            // initial immediate refresh (non-blocking)
+            hueViewModel.refreshHueState()
+            // then periodically refresh while the detail screen remains visible
+            while (screen == "lights" || screen == "brightness" || screen == "color") {
+                try {
+                    delay(6000)
+                    hueViewModel.refreshHueState()
+                } catch (_: Throwable) {
+                    break
+                }
+            }
         }
     }
 
-    // App-wide dynamic theme values
-    val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
-    val buttonColor = Color(settings.buttonColor)
-    val buttonTextColor = Color(settings.buttonTextColor)
+    // App-wide dynamic theme values (use safe initial and guard Color construction)
+    val settings by settingsViewModel.settings.collectAsState(initial = com.example.commonlibrary.SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
     val isDarkMode = settings.isDarkMode
 
     val dynamicColorScheme = remember(buttonColor, buttonTextColor, isDarkMode) {
@@ -176,7 +223,7 @@ fun HueAutomationHomeScreen(
                                 else -> "Light Options"
                             },
                             fontWeight = FontWeight.Bold,
-                            color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor)
+                            color = if (settings.isDarkMode) buttonColor else buttonTextColor
                         )
                     },
                     navigationIcon = {
@@ -185,7 +232,7 @@ fun HueAutomationHomeScreen(
                                 if (screen == "home") onBack() else screen = "home"
                             }
                         ) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor))
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (settings.isDarkMode) buttonColor else buttonTextColor)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -403,7 +450,6 @@ private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, sco
      scope.launch {
         var _successCount = 0
         var _failureCount = 0
-
         suspend fun safeCall(desc: String, block: suspend () -> Unit) {
             Log.w("HueAutomation", "safeCall attempt: $desc")
             try {
@@ -416,20 +462,55 @@ private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, sco
             }
         }
 
-        // Sanity: ensure bridge info present
+        // Sanity: ensure bridge info present. Try to load persisted credentials into the ViewModel
+        // if the ViewModel delayed refresh (Home optimization) and credentials are available on disk.
+        try { hueViewModel.loadPersistedCredentialsIfMissing() } catch (_: Exception) {}
         val ip = hueViewModel.bridgeIp.value
         val user = hueViewModel.hueUsername.value
+        val userDisplay = user?.let { if (it.length > 6) it.take(3) + "..." + it.takeLast(3) else it } ?: "<none>"
+        Log.d("HueAutomation", "runTest: using bridgeIp=$ip hueUser=$userDisplay")
         if (ip.isNullOrEmpty() || user.isNullOrEmpty()) {
             try { snackbarHostState.showSnackbar("Hue not configured: pair with a bridge first") } catch (_: Exception) {}
             return@launch
         }
+
+        // Quick reachability check: if bridge isn't reachable with current credentials, surface a message
+        val reachable = try { hueViewModel.checkBridgeReachable() } catch (_: Exception) { false }
+        if (!reachable) {
+            try { snackbarHostState.showSnackbar("Hue bridge not reachable — attempting anyway") } catch (_: Exception) {}
+            Log.w("HueAutomation", "runTest: bridge not reachable or auth failed (ip=$ip user=$userDisplay) — continuing")
+            // proceed anyway: don't abort the Test. We'll attempt actions and report successes/failures below.
+        }
+
+        // Attempt a short refresh to populate lights/groups before applying preview — non-blocking and short timeout.
+        try {
+            Log.d("HueAutomation", "runTest: requesting short FORCE refresh before preview")
+            try { hueViewModel.forceRefreshHueState() } catch (_: Exception) {}
+            try { kotlinx.coroutines.withTimeout(2000) { hueViewModel.forceRefreshHueStateAndWait(1500, 200) } } catch (_: Exception) {}
+        } catch (_: Exception) {}
 
         val allLights = hueViewModel.lights.value
 
         // For Test, ONLY target the explicit individual lights selected in the LightSelection UI.
         // The user expects a preview: include selected lights even if they're currently OFF so we can
         // turn them on for the preview. We'll restore original states afterwards.
-        val affected = computeTestAffectedLights(allLights, settings, requireOn = false)
+        var affected = computeTestAffectedLights(allLights, settings, requireOn = false)
+        // If bridge metadata not yet available (allLights empty), but the user selected specific IDs,
+        // synthesize lightweight HueLight entries so Test can still target the requested lights.
+        if (affected.isEmpty() && settings.lightIds.isNotEmpty()) {
+            affected = settings.lightIds.map { id ->
+                allLights.find { it.id == id } ?: HueLight(
+                    id = id,
+                    name = id,
+                    on = false,
+                    brightness = settings.brightness.coerceIn(0, 100),
+                    supportsColor = true,
+                    supportsCt = true,
+                    ctMired = null,
+                    colorGamut = null
+                )
+            }
+        }
 
         // Capture the original ON/brightness state for ALL lights as a fallback, but for full
         // color/ct/hue restoration we fetch the raw per-light state JSON from the bridge and
@@ -452,8 +533,6 @@ private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, sco
         val targetBriPercent = settings.brightness.coerceIn(0, 100)
 
         // Build a per-light action and run them in a single parallel pass to minimize round trips.
-        val start = System.currentTimeMillis()
-
         try {
             // Reduce PUTs by applying group-level actions where safe: if an entire group's member IDs
             // are included in the affected set, use one PUT for the group. Remaining lights are updated per-light.
@@ -573,6 +652,13 @@ private fun runTest(settings: HueAutomationData, hueViewModel: HueViewModel, sco
         } catch (_: Exception) {
             // ignore
         }
+
+        // Provide user feedback about the result of the Test run
+        try {
+            val msg = "Test finished: ${_successCount} success, ${_failureCount} failed"
+            Log.d("HueAutomation", msg)
+            try { snackbarHostState.showSnackbar(msg) } catch (_: Exception) {}
+        } catch (_: Exception) {}
     }
 }
 

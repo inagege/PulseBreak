@@ -19,7 +19,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import com.example.breakreminder.sync.AppSettingsViewModel
 import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
+import com.example.commonlibrary.SettingsData
 
 
 data class YogaScreenData(
@@ -55,7 +56,9 @@ fun YogaScreens(
     viewModel: AppSettingsViewModel,
     onBackToHome: () -> Unit = {}
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
 
     var currentIndex by remember { mutableStateOf(0) }
     var remainingTime by remember { mutableStateOf(60) }
@@ -138,9 +141,8 @@ fun YogaScreens(
                 modifier = Modifier
                     .size(20.dp)
                     .offset(y = 10.dp)
-                    .background(Color(settings.buttonColor), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
+                    .background(buttonColor, shape = CircleShape)
+                ) {
                 // Yoga-Icon
                 Image(
                     painter = painterResource(id = R.drawable.yogaicon),
@@ -187,7 +189,7 @@ fun YogaScreens(
                     Text(
                         text = screen.description,
                         fontSize = 20.sp,
-                        color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                        color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -203,9 +205,10 @@ fun YogaScreens(
                 // Titel
                 Text(
                     text = screen.title,
-                    fontSize = 24.sp,
-                    color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
-                    textAlign = TextAlign.Center
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center,
+                    color = if (settings.isDarkMode) buttonColor else buttonTextColor,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
 
                 // Optional description
@@ -214,7 +217,7 @@ fun YogaScreens(
                     Text(
                         text = screen.description,
                         fontSize = 20.sp,
-                        color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
+                        color = if (settings.isDarkMode) buttonColor else buttonTextColor,
                         textAlign = TextAlign.Center
                     )
                 }

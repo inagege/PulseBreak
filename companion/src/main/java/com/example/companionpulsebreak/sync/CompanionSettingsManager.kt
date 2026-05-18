@@ -10,9 +10,12 @@ import com.example.commonlibrary.HueColorMode
 import com.example.commonlibrary.SettingsData
 import com.example.commonlibrary.SettingsPreferences
 import com.example.commonlibrary.SettingsSerializer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 // Extension property to create the DataStore instance
 private val Context.settingsDataStore: DataStore<SettingsPreferences> by dataStore(
@@ -69,6 +72,31 @@ class SettingsManager(private val context: Context) {
             (m.invoke(prefs) as? Int) ?: 0
         } catch (_: Throwable) { 0 }
 
+        val walkBreakDurationMinutes = try {
+            val m = prefs::class.java.getMethod("getWalkBreakDurationMinutes")
+            (m.invoke(prefs) as? Int) ?: 5
+        } catch (_: Throwable) { 5 }
+
+        val napBreakDurationMinutes = try {
+            val m = prefs::class.java.getMethod("getNapBreakDurationMinutes")
+            (m.invoke(prefs) as? Int) ?: 5
+        } catch (_: Throwable) { 5 }
+
+        val windowBreakDurationMinutes = try {
+            val m = prefs::class.java.getMethod("getWindowBreakDurationMinutes")
+            (m.invoke(prefs) as? Int) ?: 5
+        } catch (_: Throwable) { 5 }
+
+        val feedbackPromptEnabled = try {
+            val m = prefs::class.java.getMethod("getFeedbackPromptEnabled")
+            (m.invoke(prefs) as? Boolean) ?: true
+        } catch (_: Throwable) { true }
+
+        val personalizationEnabled = try {
+            val m = prefs::class.java.getMethod("getPersonalizationEnabled")
+            (m.invoke(prefs) as? Boolean) ?: true
+        } catch (_: Throwable) { true }
+
         SettingsData(
             isDarkMode = prefs.isDarkMode,
             buttonColor = prefs.buttonColor.takeIf { it != 0 } ?: 0xFF90EE90.toInt(),
@@ -77,75 +105,152 @@ class SettingsManager(private val context: Context) {
             scheduleBreakIntervals = scheduleBreakIntervals,
             breakIntervalHours = breakIntervalHours,
             breakIntervalMinutes = breakIntervalMinutes,
+            walkBreakDurationMinutes = walkBreakDurationMinutes,
+            napBreakDurationMinutes = napBreakDurationMinutes,
+            windowBreakDurationMinutes = windowBreakDurationMinutes,
+            feedbackPromptEnabled = feedbackPromptEnabled,
+            personalizationEnabled = personalizationEnabled,
             hueAutomation = hue
         )
         .also {
             try { android.util.Log.d("SettingsMgr", "Loaded hueAutomation: lights=${it.hueAutomation.lightIds} groups=${it.hueAutomation.groupIds} brightness=${it.hueAutomation.brightness} colorMode=${it.hueAutomation.colorMode}") } catch (_: Exception) {}
         }
-    }
+    }.flowOn(Dispatchers.Default) // Offload mapping to background thread
 
     // applySettings ist jetzt eine suspend-Funktion
     suspend fun applySettings(settings: SettingsData) {
         try {
-            context.settingsDataStore.updateData { currentPreferences ->
-                val builder = currentPreferences.toBuilder()
-                    .setIsDarkMode(settings.isDarkMode)
-                    .setButtonColor(settings.buttonColor)
-                    .setButtonTextColor(settings.buttonTextColor)
-                    .setScreenSelection(settings.screenSelection)
-                // set break scheduling fields via reflection (builder may not have these methods until proto is regenerated)
-                try {
-                    val m = builder::class.java.getMethod("setScheduleBreakIntervals", Boolean::class.javaPrimitiveType)
-                    m.invoke(builder, settings.scheduleBreakIntervals)
-                } catch (_: Throwable) {}
+            // Run the DataStore update on IO to avoid doing reflection/proto building on the Main thread
+            withContext(Dispatchers.IO) {
+                val start = System.currentTimeMillis()
+                try { android.util.Log.d("SettingsMgr", "applySettings start: $start") } catch (_: Exception) {}
+                val result = context.settingsDataStore.updateData { currentPreferences ->
+                    val builder = currentPreferences.toBuilder()
+                        .setIsDarkMode(settings.isDarkMode)
+                        .setButtonColor(settings.buttonColor)
+                        .setButtonTextColor(settings.buttonTextColor)
+                        .setScreenSelection(settings.screenSelection)
+                    // set break scheduling fields via reflection (builder may not have these methods until proto is regenerated)
+                    try {
+                        val m = builder::class.java.getMethod("setScheduleBreakIntervals", Boolean::class.javaPrimitiveType)
+                        m.invoke(builder, settings.scheduleBreakIntervals)
+                    } catch (_: Throwable) {}
 
-                try {
-                    val m = builder::class.java.getMethod("setBreakIntervalHours", Int::class.javaPrimitiveType)
-                    m.invoke(builder, settings.breakIntervalHours)
-                } catch (_: Throwable) {}
+                    try {
+                        val m = builder::class.java.getMethod("setBreakIntervalHours", Int::class.javaPrimitiveType)
+                        m.invoke(builder, settings.breakIntervalHours)
+                    } catch (_: Throwable) {}
 
-                try {
-                    val m = builder::class.java.getMethod("setBreakIntervalMinutes", Int::class.javaPrimitiveType)
-                    m.invoke(builder, settings.breakIntervalMinutes)
-                } catch (_: Throwable) {}
+                    try {
+                        val m = builder::class.java.getMethod("setBreakIntervalMinutes", Int::class.javaPrimitiveType)
+                        m.invoke(builder, settings.breakIntervalMinutes)
+                    } catch (_: Throwable) {}
 
-                // update hue automation
-                val hue = settings.hueAutomation
-                val hueBuilder = com.example.commonlibrary.HueAutomationSettings.newBuilder()
-                    .clearLightIds()
-                    .clearGroupIds()
-                    .addAllLightIds(hue.lightIds)
-                    .addAllGroupIds(hue.groupIds)
-                    .setBrightness(hue.brightness)
-                    .setColorArgb(hue.colorArgb)
-                    .setColorTemperature(hue.colorTemperature)
-                    .setSceneId(hue.sceneId ?: "")
-                    .setColorMode(hue.colorMode.name)
+                    try {
+                        val m = builder::class.java.getMethod("setWalkBreakDurationMinutes", Int::class.javaPrimitiveType)
+                        m.invoke(builder, settings.walkBreakDurationMinutes)
+                    } catch (_: Throwable) {}
 
-                // set scenePreviewArgb via reflection if available on the builder
-                try {
-                    val m = hueBuilder::class.java.getMethod("setScenePreviewArgb", Int::class.javaPrimitiveType)
-                    m.invoke(hueBuilder, hue.scenePreviewArgb)
-                } catch (_: Throwable) {
-                    // ignore if generated builder doesn't have the method yet
+                    try {
+                        val m = builder::class.java.getMethod("setNapBreakDurationMinutes", Int::class.javaPrimitiveType)
+                        m.invoke(builder, settings.napBreakDurationMinutes)
+                    } catch (_: Throwable) {}
+
+                    try {
+                        val m = builder::class.java.getMethod("setWindowBreakDurationMinutes", Int::class.javaPrimitiveType)
+                        m.invoke(builder, settings.windowBreakDurationMinutes)
+                    } catch (_: Throwable) {}
+
+                    try {
+                        val m = builder::class.java.getMethod("setFeedbackPromptEnabled", Boolean::class.javaPrimitiveType)
+                        m.invoke(builder, settings.feedbackPromptEnabled)
+                    } catch (_: Throwable) {}
+
+                    try {
+                        val m = builder::class.java.getMethod("setPersonalizationEnabled", Boolean::class.javaPrimitiveType)
+                        m.invoke(builder, settings.personalizationEnabled)
+                    } catch (_: Throwable) {}
+
+                    // update hue automation
+                    val hue = settings.hueAutomation
+                    val hueBuilder = com.example.commonlibrary.HueAutomationSettings.newBuilder()
+                        .clearLightIds()
+                        .clearGroupIds()
+                        .addAllLightIds(hue.lightIds)
+                        .addAllGroupIds(hue.groupIds)
+                        .setBrightness(hue.brightness)
+                        .setColorArgb(hue.colorArgb)
+                        .setColorTemperature(hue.colorTemperature)
+                        .setSceneId(hue.sceneId ?: "")
+                        .setColorMode(hue.colorMode.name)
+
+                    // set scenePreviewArgb via reflection if available on the builder
+                    try {
+                        val m = hueBuilder::class.java.getMethod("setScenePreviewArgb", Int::class.javaPrimitiveType)
+                        m.invoke(hueBuilder, hue.scenePreviewArgb)
+                    } catch (_: Throwable) {
+                        // ignore if generated builder doesn't have the method yet
+                    }
+
+                    // build the message and set it explicitly to avoid overload ambiguity
+                    val hueMessage = hueBuilder.build()
+                    // Debug: log what hueAutomation will be persisted
+                    try { android.util.Log.d("SettingsMgr", "Persisting hueAutomation: lights=${hue.lightIds} groups=${hue.groupIds} brightness=${hue.brightness} colorMode=${hue.colorMode}") } catch (_: Exception) {}
+                    builder.setHueAutomation(hueMessage)
+
+                    builder.build()
                 }
-
-                // build the message and set it explicitly to avoid overload ambiguity
-                val hueMessage = hueBuilder.build()
-                // Debug: log what hueAutomation will be persisted
-                try { android.util.Log.d("SettingsMgr", "Persisting hueAutomation: lights=${hue.lightIds} groups=${hue.groupIds} brightness=${hue.brightness} colorMode=${hue.colorMode}") } catch (_: Exception) {}
-                builder.setHueAutomation(hueMessage)
-
-                builder.build()
-            }
-        } catch (e: Exception) {
-            try { android.util.Log.w("SettingsMgr", "applySettings failed: ${e.message}", e) } catch (_: Exception) {}
-            throw e
-        }
-    }
+                val end = System.currentTimeMillis()
+                try { android.util.Log.d("SettingsMgr", "applySettings end: $end duration=${end - start}ms") } catch (_: Exception) {}
+                result
+             }
+         } catch (e: Exception) {
+             try { android.util.Log.w("SettingsMgr", "applySettings failed: ${e.message}", e) } catch (_: Exception) {}
+             throw e
+         }
+     }
 
     // loadSettings kann für den initialen, blockierenden Ladevorgang verwendet werden
     suspend fun loadInitialSettings(): SettingsData {
         return settingsFlow.first()
+    }
+
+    // Apply only hueAutomation portion without reading current settings — reduces roundtrips and avoids blocking callers.
+    suspend fun applyHueAutomation(hue: com.example.commonlibrary.HueAutomationData) {
+        withContext(Dispatchers.IO) {
+            val start = System.currentTimeMillis()
+            try { android.util.Log.d("SettingsMgr", "applyHueAutomation start: $start") } catch (_: Exception) {}
+            try {
+                context.settingsDataStore.updateData { currentPreferences ->
+                    val builder = currentPreferences.toBuilder()
+
+                    val hueBuilder = com.example.commonlibrary.HueAutomationSettings.newBuilder()
+                        .clearLightIds()
+                        .clearGroupIds()
+                        .addAllLightIds(hue.lightIds)
+                        .addAllGroupIds(hue.groupIds)
+                        .setBrightness(hue.brightness)
+                        .setColorArgb(hue.colorArgb)
+                        .setColorTemperature(hue.colorTemperature)
+                        .setSceneId(hue.sceneId ?: "")
+                        .setColorMode(hue.colorMode.name)
+
+                    try {
+                        val m = hueBuilder::class.java.getMethod("setScenePreviewArgb", Int::class.javaPrimitiveType)
+                        m.invoke(hueBuilder, hue.scenePreviewArgb)
+                    } catch (_: Throwable) {}
+
+                    val hueMessage = hueBuilder.build()
+                    try { builder.setHueAutomation(hueMessage) } catch (_: Throwable) {}
+                    builder.build()
+                }
+            } catch (e: Exception) {
+                try { android.util.Log.w("SettingsMgr", "applyHueAutomation failed: ${e.message}", e) } catch (_: Exception) {}
+                throw e
+            } finally {
+                val end = System.currentTimeMillis()
+                try { android.util.Log.d("SettingsMgr", "applyHueAutomation end: $end duration=${end - start}ms") } catch (_: Exception) {}
+            }
+        }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import android.util.Log
+import kotlinx.coroutines.withContext
 import com.example.companionpulsebreak.sync.HueViewModel
 import com.example.companionpulsebreak.sync.HueLight
 import com.example.companionpulsebreak.sync.HueGroup
@@ -47,7 +48,8 @@ internal fun LightsSelectionScreen(
                 return@LaunchedEffect
             }
 
-            val sd = settingsManager.loadInitialSettings()
+            // explicitly perform DataStore read on IO to avoid main-thread blocking
+            val sd = withContext(kotlinx.coroutines.Dispatchers.IO) { settingsManager.loadInitialSettings() }
             val persisted = sd.hueAutomation
             selectedLights = persisted.lightIds.toSet()
             selectedGroups = persisted.groupIds.toSet()

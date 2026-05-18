@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,26 +25,41 @@ fun BreakSessionsScreen(
     viewModel: CompanionSettingsViewModel,
     onBack: () -> Unit
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsState(initial = com.example.commonlibrary.SettingsData())
 
-    // Use settings directly as single source of truth to avoid stale local state issues
-    val isDarkMode = settings.isDarkMode
-    val buttonColor = Color(settings.buttonColor)
-    val buttonTextColor = Color(settings.buttonTextColor)
+    var localScheduleBreakIntervals by remember { mutableStateOf(settings.scheduleBreakIntervals) }
+    var localBreakIntervalHours by remember { mutableStateOf(settings.breakIntervalHours) }
+    var localBreakIntervalMinutes by remember { mutableStateOf(settings.breakIntervalMinutes) }
+    var localWalkDurationMinutes by remember { mutableStateOf(settings.walkBreakDurationMinutes) }
+    var localNapDurationMinutes by remember { mutableStateOf(settings.napBreakDurationMinutes) }
+    var localWindowDurationMinutes by remember { mutableStateOf(settings.windowBreakDurationMinutes) }
 
-    val dynamicColorScheme = remember(buttonColor, buttonTextColor, isDarkMode) {
-        if (isDarkMode) {
+    val localIsDarkMode = settings.isDarkMode
+    val localButtonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val localButtonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
+
+    LaunchedEffect(settings) {
+        localScheduleBreakIntervals = settings.scheduleBreakIntervals
+        localBreakIntervalHours = settings.breakIntervalHours
+        localBreakIntervalMinutes = settings.breakIntervalMinutes
+        localWalkDurationMinutes = settings.walkBreakDurationMinutes
+        localNapDurationMinutes = settings.napBreakDurationMinutes
+        localWindowDurationMinutes = settings.windowBreakDurationMinutes
+    }
+
+    val dynamicColorScheme = remember(localButtonColor, localButtonTextColor, localIsDarkMode) {
+        if (localIsDarkMode) {
             darkColorScheme(
-                primary = buttonColor,
-                onPrimary = buttonTextColor,
+                primary = localButtonColor,
+                onPrimary = localButtonTextColor,
                 background = Color(0xFF121212),
                 surface = Color(0xFF1E1E1E),
                 onSurface = Color(0xFFECECEC)
             )
         } else {
             lightColorScheme(
-                primary = buttonColor,
-                onPrimary = buttonTextColor,
+                primary = localButtonColor,
+                onPrimary = localButtonTextColor,
                 background = Color(0xFFF0F4F5),
                 surface = Color.White,
                 onSurface = Color(0xFF1F1F1F)
@@ -52,14 +67,15 @@ fun BreakSessionsScreen(
         }
     }
 
-    fun persistBreakSettings(enabled: Boolean = settings.scheduleBreakIntervals,
-                              hours: Int = settings.breakIntervalHours,
-                              minutes: Int = settings.breakIntervalMinutes) {
+    fun persistBreakSettings() {
         viewModel.updateSettingsPartial { current ->
             current.copy(
-                scheduleBreakIntervals = enabled,
-                breakIntervalHours = hours,
-                breakIntervalMinutes = minutes
+                scheduleBreakIntervals = localScheduleBreakIntervals,
+                breakIntervalHours = localBreakIntervalHours,
+                breakIntervalMinutes = localBreakIntervalMinutes,
+                walkBreakDurationMinutes = localWalkDurationMinutes,
+                napBreakDurationMinutes = localNapDurationMinutes,
+                windowBreakDurationMinutes = localWindowDurationMinutes
             )
         }
     }
@@ -163,20 +179,21 @@ fun BreakSessionsScreen(
                             },
                             supportingContent = {
                                 Text(
-                                    "When enabled, you’ll get a break reminder at your chosen interval.",
+                                    "When enabled, you’ll get a break reminder at your chosen interval." ,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                                 )
                             },
                             trailingContent = {
                                 Switch(
-                                    checked = settings.scheduleBreakIntervals,
+                                    checked = localScheduleBreakIntervals,
                                     onCheckedChange = {
-                                        persistBreakSettings(enabled = it)
+                                        localScheduleBreakIntervals = it
+                                        persistBreakSettings()
                                     },
                                     colors = SwitchDefaults.colors(
-                                        checkedTrackColor = buttonColor.copy(alpha = 0.35f),
-                                        checkedThumbColor = buttonColor,
+                                        checkedTrackColor = localButtonColor.copy(alpha = 0.35f),
+                                        checkedThumbColor = localButtonColor,
                                         uncheckedThumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                         uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
                                     )
@@ -186,7 +203,7 @@ fun BreakSessionsScreen(
 
                         // Interval controls (animated)
                         AnimatedVisibility(
-                            visible = settings.scheduleBreakIntervals,
+                            visible = localScheduleBreakIntervals,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
@@ -215,7 +232,7 @@ fun BreakSessionsScreen(
                                         )
                                         Spacer(Modifier.weight(1f))
                                         Text(
-                                            text = intervalSummary(settings.breakIntervalHours, settings.breakIntervalMinutes),
+                                            text = intervalSummary(localBreakIntervalHours, localBreakIntervalMinutes),
                                             style = MaterialTheme.typography.labelLarge,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
                                         )
@@ -229,22 +246,24 @@ fun BreakSessionsScreen(
                                     IntervalDropdownField(
                                         modifier = Modifier.weight(1f),
                                         label = "Hours",
-                                        valueText = "${settings.breakIntervalHours}",
+                                        valueText = "${localBreakIntervalHours}",
                                         options = (0..12).toList(),
                                         optionLabel = { "$it h" },
                                         onSelected = {
-                                            persistBreakSettings(hours = it)
+                                            localBreakIntervalHours = it
+                                            persistBreakSettings()
                                         }
                                     )
 
                                     IntervalDropdownField(
                                         modifier = Modifier.weight(1f),
                                         label = "Minutes",
-                                        valueText = "${settings.breakIntervalMinutes}",
+                                        valueText = "${localBreakIntervalMinutes}",
                                         options = (0..11).map { it * 5 },
                                         optionLabel = { "$it min" },
                                         onSelected = {
-                                            persistBreakSettings(minutes = it)
+                                            localBreakIntervalMinutes = it
+                                            persistBreakSettings()
                                         }
                                     )
                                 }
@@ -256,6 +275,66 @@ fun BreakSessionsScreen(
                                 )
                             }
                         }
+
+                        Spacer(Modifier.height(14.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                        Spacer(Modifier.height(12.dp))
+
+                        Text(
+                            text = "Activity break durations",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Set duration for watch activities.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+                        Spacer(Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            IntervalDropdownField(
+                                modifier = Modifier.weight(1f),
+                                label = "Walking",
+                                valueText = "${localWalkDurationMinutes} min",
+                                options = (1..30).toList(),
+                                optionLabel = { "$it min" },
+                                onSelected = {
+                                    localWalkDurationMinutes = it
+                                    persistBreakSettings()
+                                }
+                            )
+
+                            IntervalDropdownField(
+                                modifier = Modifier.weight(1f),
+                                label = "Nap",
+                                valueText = "${localNapDurationMinutes} min",
+                                options = (1..30).toList(),
+                                optionLabel = { "$it min" },
+                                onSelected = {
+                                    localNapDurationMinutes = it
+                                    persistBreakSettings()
+                                }
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        IntervalDropdownField(
+                            modifier = Modifier.fillMaxWidth(),
+                            label = "Opening Window",
+                            valueText = "${localWindowDurationMinutes} min",
+                            options = (1..30).toList(),
+                            optionLabel = { "$it min" },
+                            onSelected = {
+                                localWindowDurationMinutes = it
+                                persistBreakSettings()
+                            }
+                        )
                     }
                 }
 
@@ -280,9 +359,10 @@ private fun <T> IntervalDropdownField(
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { isOpen -> expanded = isOpen },
+        onExpandedChange = { expanded = !expanded },
         modifier = modifier
     ) {
+
         OutlinedTextField(
             value = valueText,
             onValueChange = { /* read-only */ },
@@ -292,7 +372,7 @@ private fun <T> IntervalDropdownField(
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxWidth()
+                .menuAnchor()
         )
 
         ExposedDropdownMenu(

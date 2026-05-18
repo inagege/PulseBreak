@@ -28,7 +28,9 @@ fun CompanionNavigation (
                 viewModel = viewModel,
                 onNavigateToSettings = { navController.navigate("companion_settings") },
                 onNavigateToHue = { navController.navigate("hue_entry") },
-                onNavigateToBreakSessions = { navController.navigate("break_sessions") }
+                onNavigateToBreakSessions = { navController.navigate("break_sessions") },
+                onNavigateToStressDetector = { navController.navigate("stress_detector") },
+                onNavigateToManual = { navController.navigate("manual") }
             )
         }
         composable("companion_settings") {
@@ -39,6 +41,18 @@ fun CompanionNavigation (
         }
         composable("break_sessions") {
             BreakSessionsScreen(
+                viewModel = viewModel,
+                onBack = { navController.navigateUp() }
+            )
+        }
+        composable("stress_detector") {
+            StressDetectorScreen(
+                viewModel = viewModel,
+                onBack = { navController.navigateUp() }
+            )
+        }
+        composable("manual") {
+            CompanionManualScreen(
                 viewModel = viewModel,
                 onBack = { navController.navigateUp() }
             )

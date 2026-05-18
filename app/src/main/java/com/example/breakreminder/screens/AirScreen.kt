@@ -1,5 +1,7 @@
 package com.example.breakreminder.screens
 
+import androidx.compose.ui.platform.LocalContext
+import com.example.breakreminder.HeartRateReader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +26,7 @@ fun AirStartScreen(
     onStartVent: () -> Unit = {}  // Navigation callback
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val windowDurationMinutes = settings.windowBreakDurationMinutes.coerceAtLeast(1)
 
 
     // Local state for Compose UI
@@ -57,7 +60,7 @@ fun AirStartScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Should I open the window?",
+                text = "Open the window for ${windowDurationMinutes} minutes?",
                 fontSize = 18.sp,
                 color = if (isDarkMode) buttonColor else buttonTextColor,
                 fontWeight = FontWeight.Bold,
@@ -99,20 +102,22 @@ fun AirScreen(
     onBackToHome: () -> Unit = {}  // Callback when venting ends
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val windowDurationMinutes = settings.windowBreakDurationMinutes.coerceAtLeast(1)
 
     val isDarkMode = settings.isDarkMode
     val buttonColor = Color(settings.buttonColor)
     val buttonTextColor = Color(settings.buttonTextColor)
 
-    var remainingTime by remember { mutableStateOf(5 * 60) } // 5-minute countdown
-    var isFinished by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
+    var remainingTime by remember(windowDurationMinutes) { mutableStateOf(windowDurationMinutes * 60) }
+    LaunchedEffect(windowDurationMinutes) {
+        remainingTime = windowDurationMinutes * 60
         while (remainingTime > 0) {
             delay(1000)
             remainingTime--
         }
-        isFinished = true
+        try { HeartRateReader.sendHueRestoreMessage(context) } catch (_: Exception) {}
+        try { onBackToHome() } catch (_: Exception) {}
     }
 
     val minutes = remainingTime / 60
@@ -163,7 +168,10 @@ fun AirScreen(
             Spacer(modifier = Modifier.height(5.dp))
 
             ElevatedButton(
-                onClick = { onBackToHome() },
+                onClick = {
+                    try { HeartRateReader.sendHueRestoreMessage(context) } catch (_: Exception) {}
+                    onBackToHome()
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = buttonColor,
                     contentColor = buttonTextColor

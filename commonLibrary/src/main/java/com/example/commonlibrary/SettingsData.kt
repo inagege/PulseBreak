@@ -23,5 +23,12 @@ data class SettingsData(
     val scheduleBreakIntervals: Boolean = false,
     val breakIntervalHours: Int = 0,
     val breakIntervalMinutes: Int = 15,
+    // Activity break durations on watch (minutes)
+    val walkBreakDurationMinutes: Int = 5,
+    val napBreakDurationMinutes: Int = 5,
+    val windowBreakDurationMinutes: Int = 5,
+    // Stress feedback and on-device personalization
+    val feedbackPromptEnabled: Boolean = true,
+    val personalizationEnabled: Boolean = true,
     val hueAutomation: HueAutomationData = HueAutomationData()
 )

@@ -42,6 +42,10 @@ android {
         // Auf deine aktuelle Compose-Version achten
         kotlinCompilerExtensionVersion = "1.4.3"
     }
+
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 dependencies {
@@ -51,6 +55,8 @@ dependencies {
 
     // Enable Google Play Services for Wear OS
     implementation("com.google.android.gms:play-services-wearable:18.1.0")
+    // Lifecycle runtime for Compose (collectAsStateWithLifecycle)
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.3")
     // -----------------------------------
     // Compose BOM (Bill of Materials)
     // -----------------------------------
@@ -96,6 +102,7 @@ dependencies {
     implementation(libs.navigation.compose)
     implementation(libs.datastore.core.android)
     implementation(libs.datastore.android)
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
 
     // -----------------------------------
     // Tests

@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Timer
@@ -22,7 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
+import com.example.commonlibrary.SettingsData
 import com.example.companionpulsebreak.sync.CompanionSettingsViewModel
 
 data class HomeItem(
@@ -37,11 +39,16 @@ fun HomeScreen(
     viewModel: CompanionSettingsViewModel,
     onNavigateToSettings: () -> Unit,
     onNavigateToHue: () -> Unit,
-    onNavigateToBreakSessions: () -> Unit
+    onNavigateToBreakSessions: () -> Unit,
+    onNavigateToStressDetector: () -> Unit,
+    onNavigateToManual: () -> Unit
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val buttonColor = Color(settings.buttonColor)
-    val buttonTextColor = Color(settings.buttonTextColor)
+    // use an explicit initial value to avoid collection races and ANRs
+    val settings by viewModel.settings.collectAsState(initial = SettingsData())
+
+    // Guard Color construction to avoid crashes on malformed values; fallback to sensible defaults
+    val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
+    val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
     val isDarkMode = settings.isDarkMode
 
     // Recreate the scheme whenever relevant settings change so Compose recomposes correctly.
@@ -69,6 +76,7 @@ fun HomeScreen(
     val homeItems = listOf(
         HomeItem(Icons.Default.Lightbulb, "Light Setup", "Customize your lighting"),
         HomeItem(Icons.Default.Timer, "Break Management", "Manage your break intervals"),
+        HomeItem(Icons.Default.Favorite, "Stress Detector", "Manage stress detection settings"),
         HomeItem(Icons.Default.Palette, "Design Options", "Personalize the app's look"),
         HomeItem(Icons.Default.Book, "Manual", "Learn how to use the app")
     )
@@ -85,7 +93,7 @@ fun HomeScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Pulse Break", fontWeight = FontWeight.Bold, color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor)) },
+                    title = { Text("Pulse Break", fontWeight = FontWeight.Bold, color = if (settings.isDarkMode) buttonColor else buttonTextColor) },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = dynamicSurfaceColor,
                         titleContentColor = dynamicPrimaryColor
@@ -114,6 +122,8 @@ fun HomeScreen(
                                 "Design Options" -> onNavigateToSettings()
                                 "Light Setup" -> onNavigateToHue()
                                 "Break Management" -> onNavigateToBreakSessions()
+                                "Stress Detector" -> onNavigateToStressDetector()
+                                "Manual" -> onNavigateToManual()
                                 else -> {
                                     // no-op for preliminary draft
                                 }

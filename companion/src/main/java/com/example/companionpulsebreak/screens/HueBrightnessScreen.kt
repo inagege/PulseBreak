@@ -46,9 +46,9 @@ internal fun BrightnessScreen(
             if (brightness == lastSavedBrightness) return@LaunchedEffect
             try {
                 kotlinx.coroutines.delay(debounceMs)
-                val sd = settingsManager.loadInitialSettings()
-                val merged = sd.copy(hueAutomation = sd.hueAutomation.copy(brightness = brightness))
-                settingsManager.applySettings(merged)
+                // Persist only the hueAutomation changes to avoid blocking reads/writes
+                val updated = initial.copy(brightness = brightness)
+                settingsManager.applyHueAutomation(updated)
                 lastSavedBrightness = brightness
             } catch (_: Exception) {
             }
@@ -68,4 +68,3 @@ internal fun BrightnessScreen(
         }
     }
 }
-

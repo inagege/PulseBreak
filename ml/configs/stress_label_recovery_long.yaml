@@ -1,0 +1,29 @@
+base_config: ml/configs/stress_baseline.yaml
+
+recovery_search:
+  # Broader Cartesian search across label windows and feature windowing.
+  label_match_window_ms: [90000, 120000, 180000, 240000]
+  max_label_age_ms: [300000, 600000, 900000]
+  window_seconds: [30, 45, 60]
+  step_seconds: [6, 8, 10]
+  max_trials: 18
+  selection_metric_priority: ["auroc", "balanced_accuracy", "mcc", "pr_auc"]
+
+  # Longer-run search overrides.
+  fast_overrides:
+    training:
+      epochs: 24
+      early_stopping_patience: 4
+      search_hidden_units:
+        - [96, 48]
+        - [128, 64, 32]
+      search_dropout: [0.1]
+      search_learning_rate: [0.001, 0.0005]
+      search_activation: [relu, gelu]
+      search_batch_norm: [true]
+      search_l2: [0.0001]
+      search_use_focal: [false]
+      search_focal_gamma: [2.0]
+      search_focal_alpha: [0.25]
+      search_seeds: [42]
+

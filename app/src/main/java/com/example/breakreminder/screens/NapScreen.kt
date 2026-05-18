@@ -1,5 +1,7 @@
 package com.example.breakreminder.screens
 
+import androidx.compose.ui.platform.LocalContext
+import com.example.breakreminder.HeartRateReader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +26,7 @@ fun NapStartScreen(
     onStartNap: () -> Unit = {}  // Navigation callback
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val napDurationMinutes = settings.napBreakDurationMinutes.coerceAtLeast(1)
 
     Scaffold { innerPadding ->
         Column(
@@ -51,7 +54,7 @@ fun NapStartScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Ready to take a 5-minute nap?",
+                text = "Ready to take a ${napDurationMinutes}-minute nap?",
                 fontSize = 18.sp,
                 color = if (settings.isDarkMode) Color(settings.buttonColor) else Color(settings.buttonTextColor),
                 fontWeight = FontWeight.Bold,
@@ -93,16 +96,18 @@ fun NapScreen(
     onBackToHome: () -> Unit = {}  // Callback when nap ends
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val napDurationMinutes = settings.napBreakDurationMinutes.coerceAtLeast(1)
 
-    var remainingTime by remember { mutableStateOf(5 * 60) } // 5-minute countdown
-    var isFinished by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
+    var remainingTime by remember(napDurationMinutes) { mutableStateOf(napDurationMinutes * 60) }
+    LaunchedEffect(napDurationMinutes) {
+        remainingTime = napDurationMinutes * 60
         while (remainingTime > 0) {
             delay(1000)
             remainingTime--
         }
-        isFinished = true
+        try { HeartRateReader.sendHueRestoreMessage(context) } catch (_: Exception) {}
+        try { onBackToHome() } catch (_: Exception) {}
     }
 
     val minutes = remainingTime / 60
@@ -153,7 +158,10 @@ fun NapScreen(
             Spacer(modifier = Modifier.height(5.dp))
 
             ElevatedButton(
-                onClick = { onBackToHome() },
+                onClick = {
+                    try { HeartRateReader.sendHueRestoreMessage(context) } catch (_: Exception) {}
+                    onBackToHome()
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(settings.buttonColor),
                     contentColor = Color(settings.buttonTextColor)

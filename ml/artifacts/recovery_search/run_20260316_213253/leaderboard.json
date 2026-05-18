@@ -1,0 +1,62 @@
+{
+  "selection_metric_priority": [
+    "auroc",
+    "balanced_accuracy",
+    "mcc",
+    "pr_auc"
+  ],
+  "trials": [
+    {
+      "trial": 1,
+      "label_match_window_ms": 120000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 45,
+      "step_seconds": 8,
+      "val": {
+        "auroc": 0.7719907407407407,
+        "pr_auc": 0.6017845080720808,
+        "f1": 0.592,
+        "precision": 0.5211267605633803,
+        "recall": 0.6851851851851852,
+        "specificity": 0.734375,
+        "balanced_accuracy": 0.7097800925925926,
+        "mcc": 0.3929212069465016,
+        "positives": 54,
+        "samples": 182
+      },
+      "score_tuple": [
+        0.7719907407407407,
+        0.7097800925925926,
+        0.3929212069465016,
+        0.6017845080720808
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213253/trial_01_label120000_age600000_w45_s8/trial_config.yaml"
+    }
+  ],
+  "best": {
+    "trial": 1,
+    "label_match_window_ms": 120000,
+    "max_label_age_ms": 600000,
+    "window_seconds": 45,
+    "step_seconds": 8,
+    "val": {
+      "auroc": 0.7719907407407407,
+      "pr_auc": 0.6017845080720808,
+      "f1": 0.592,
+      "precision": 0.5211267605633803,
+      "recall": 0.6851851851851852,
+      "specificity": 0.734375,
+      "balanced_accuracy": 0.7097800925925926,
+      "mcc": 0.3929212069465016,
+      "positives": 54,
+      "samples": 182
+    },
+    "score_tuple": [
+      0.7719907407407407,
+      0.7097800925925926,
+      0.3929212069465016,
+      0.6017845080720808
+    ],
+    "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213253/trial_01_label120000_age600000_w45_s8/trial_config.yaml"
+  }
+}

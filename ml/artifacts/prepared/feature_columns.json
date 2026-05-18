@@ -1,0 +1,29 @@
+{
+  "feature_columns": [
+    "hr_mean",
+    "hr_median",
+    "hr_std",
+    "hr_min",
+    "hr_max",
+    "hr_range",
+    "hr_iqr",
+    "hr_cv",
+    "hr_slope",
+    "hr_delta_abs",
+    "rmssd",
+    "pnn50",
+    "ibi_mean_ms",
+    "ibi_std_ms",
+    "motion_mean",
+    "motion_median",
+    "motion_std",
+    "motion_p90",
+    "motion_active_fraction",
+    "motion_rest_fraction",
+    "hr_motion_corr",
+    "hr_motion_ratio",
+    "temp_mean",
+    "temp_median",
+    "temp_spread"
+  ]
+}

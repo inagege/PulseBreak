@@ -1,0 +1,105 @@
+base_config: ml/configs/stress_baseline.yaml
+
+comparison:
+  output_json: ml/artifacts/model_comparison/repeated_group_cv.json
+  n_splits: 4
+  repeats: 2
+  random_seed: 2026
+  selection_metric_priority: ["auroc", "balanced_accuracy", "mcc", "pr_auc"]
+
+  models:
+    - name: logistic_l2
+      family: logistic_regression
+      penalty: l2
+      c: 1.0
+      solver: lbfgs
+      max_iter: 5000
+      class_weight: balanced
+      random_state: 2026
+
+    - name: hist_gb
+      family: hist_gradient_boosting
+      learning_rate: 0.05
+      max_depth: 3
+      max_iter: 250
+      min_samples_leaf: 20
+      l2_regularization: 0.0
+      early_stopping: false
+      class_weight: balanced
+      random_state: 2026
+
+    - name: lightgbm_small
+      family: lightgbm
+      n_estimators: 300
+      learning_rate: 0.03
+      num_leaves: 15
+      max_depth: 4
+      min_child_samples: 20
+      subsample: 0.9
+      colsample_bytree: 0.9
+      reg_alpha: 0.0
+      reg_lambda: 0.5
+      class_weight: balanced
+      random_state: 2026
+
+    - name: xgboost_small
+      family: xgboost
+      n_estimators: 300
+      learning_rate: 0.03
+      max_depth: 4
+      min_child_weight: 1.0
+      subsample: 0.9
+      colsample_bytree: 0.9
+      reg_alpha: 0.0
+      reg_lambda: 1.0
+      gamma: 0.0
+      class_weight: balanced
+      random_state: 2026
+
+    - name: tf_linear
+      family: tf_mlp
+      hidden_units: []
+      dropout: 0.0
+      learning_rate: 0.001
+      activation: relu
+      batch_norm: false
+      l2_kernel: 0.01
+      use_focal: false
+      focal_gamma: 2.0
+      focal_alpha: 0.25
+      epochs: 24
+      batch_size: 256
+      patience: 4
+      seeds: [3]
+
+    - name: tf_mlp_small
+      family: tf_mlp
+      hidden_units: [64, 32]
+      dropout: 0.1
+      learning_rate: 0.001
+      activation: relu
+      batch_norm: false
+      l2_kernel: 0.001
+      use_focal: false
+      focal_gamma: 2.0
+      focal_alpha: 0.25
+      epochs: 24
+      batch_size: 256
+      patience: 4
+      seeds: [42]
+
+    - name: tf_mlp_hist
+      family: tf_mlp
+      hidden_units: [128, 64, 32]
+      dropout: 0.1
+      learning_rate: 0.001
+      activation: relu
+      batch_norm: true
+      l2_kernel: 0.0001
+      use_focal: false
+      focal_gamma: 2.0
+      focal_alpha: 0.25
+      epochs: 24
+      batch_size: 256
+      patience: 4
+      seeds: [42]

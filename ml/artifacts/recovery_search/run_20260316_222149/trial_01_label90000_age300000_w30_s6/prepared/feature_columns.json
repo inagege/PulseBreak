@@ -1,0 +1,15 @@
+{
+  "feature_columns": [
+    "hr_mean",
+    "hr_std",
+    "hr_min",
+    "hr_max",
+    "hr_delta_abs",
+    "rmssd",
+    "pnn50",
+    "motion_mean",
+    "motion_std",
+    "temp_mean",
+    "temp_spread"
+  ]
+}

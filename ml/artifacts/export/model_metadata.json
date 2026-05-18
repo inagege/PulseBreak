@@ -1,0 +1,24 @@
+{
+  "model_name": "stress_model",
+  "version": "v3-tf-tabular",
+  "model_type": "tf_ensemble_avg",
+  "input_features": [
+    "hr_mean",
+    "hr_std",
+    "hr_min",
+    "hr_max",
+    "hr_delta_abs",
+    "rmssd",
+    "pnn50",
+    "motion_mean",
+    "motion_std",
+    "temp_mean",
+    "temp_spread"
+  ],
+  "input_dim": 11,
+  "output": "stress_probability",
+  "decision_threshold": 0.67,
+  "source_bundle": "ml/artifacts/checkpoints/stress_bundle.joblib",
+  "tflite_path": "ml/artifacts/export/stress_model.tflite",
+  "normalization_embedded": true
+}

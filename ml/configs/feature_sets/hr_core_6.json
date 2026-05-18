@@ -1,0 +1,10 @@
+{
+  "feature_columns": [
+    "hr_mean",
+    "hr_median",
+    "hr_std",
+    "hr_min",
+    "hr_max",
+    "hr_range"
+  ]
+}

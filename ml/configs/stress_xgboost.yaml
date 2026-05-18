@@ -1,0 +1,23 @@
+dataset:
+  prepared_csv: ml/artifacts/prepared/stress_windows.csv
+  feature_columns_json: ml/artifacts/prepared/feature_columns.json
+  test_size: 0.2
+  random_seed: 42
+
+training:
+  n_estimators: 300
+  learning_rate: 0.03
+  max_depth: 4
+  min_child_weight: 1.0
+  subsample: 0.9
+  colsample_bytree: 0.9
+  reg_alpha: 0.0
+  reg_lambda: 1.0
+  gamma: 0.0
+  class_weight: balanced
+  cv_repeats: 2
+  cv_n_splits: 4
+  cv_random_seed: 2026
+
+export:
+  model_bundle_path: ml/artifacts/xgboost/checkpoints/stress_bundle.joblib

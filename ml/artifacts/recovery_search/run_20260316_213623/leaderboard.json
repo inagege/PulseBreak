@@ -1,0 +1,504 @@
+{
+  "selection_metric_priority": [
+    "auroc",
+    "balanced_accuracy",
+    "mcc",
+    "pr_auc"
+  ],
+  "trials": [
+    {
+      "trial": 1,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 30,
+      "step_seconds": 6,
+      "val": {
+        "auroc": 0.666923076923077,
+        "pr_auc": 0.4463407095691067,
+        "f1": 0.5050505050505051,
+        "precision": 0.5319148936170213,
+        "recall": 0.4807692307692308,
+        "specificity": 0.824,
+        "balanced_accuracy": 0.6523846153846153,
+        "mcc": 0.31434545982133383,
+        "positives": 52,
+        "samples": 177
+      },
+      "score_tuple": [
+        0.666923076923077,
+        0.6523846153846153,
+        0.31434545982133383,
+        0.4463407095691067
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_01_label90000_age300000_w30_s6/trial_config.yaml"
+    },
+    {
+      "trial": 2,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 30,
+      "step_seconds": 8,
+      "val": {
+        "auroc": 0.7640160183066362,
+        "pr_auc": 0.5631815254660953,
+        "f1": 0.6185567010309279,
+        "precision": 0.5084745762711864,
+        "recall": 0.7894736842105263,
+        "specificity": 0.6847826086956522,
+        "balanced_accuracy": 0.7371281464530892,
+        "mcc": 0.43325505052018937,
+        "positives": 38,
+        "samples": 130
+      },
+      "score_tuple": [
+        0.7640160183066362,
+        0.7371281464530892,
+        0.43325505052018937,
+        0.5631815254660953
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_02_label90000_age300000_w30_s8/trial_config.yaml"
+    },
+    {
+      "trial": 3,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 30,
+      "step_seconds": 10,
+      "val": {
+        "auroc": 0.737331081081081,
+        "pr_auc": 0.535555182719706,
+        "f1": 0.5714285714285714,
+        "precision": 0.5263157894736842,
+        "recall": 0.625,
+        "specificity": 0.7567567567567568,
+        "balanced_accuracy": 0.6908783783783784,
+        "mcc": 0.36545282786111083,
+        "positives": 32,
+        "samples": 106
+      },
+      "score_tuple": [
+        0.737331081081081,
+        0.6908783783783784,
+        0.36545282786111083,
+        0.535555182719706
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_03_label90000_age300000_w30_s10/trial_config.yaml"
+    },
+    {
+      "trial": 4,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 45,
+      "step_seconds": 6,
+      "val": {
+        "auroc": 0.7815727861176147,
+        "pr_auc": 0.5608668957448515,
+        "f1": 0.6229508196721312,
+        "precision": 0.5507246376811594,
+        "recall": 0.7169811320754716,
+        "specificity": 0.7737226277372263,
+        "balanced_accuracy": 0.745351879906349,
+        "mcc": 0.4576151283849244,
+        "positives": 53,
+        "samples": 190
+      },
+      "score_tuple": [
+        0.7815727861176147,
+        0.745351879906349,
+        0.4576151283849244,
+        0.5608668957448515
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_04_label90000_age300000_w45_s6/trial_config.yaml"
+    },
+    {
+      "trial": 5,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 45,
+      "step_seconds": 8,
+      "val": {
+        "auroc": 0.7753846153846154,
+        "pr_auc": 0.5889017561836548,
+        "f1": 0.5977011494252874,
+        "precision": 0.5416666666666666,
+        "recall": 0.6666666666666666,
+        "specificity": 0.78,
+        "balanced_accuracy": 0.7233333333333334,
+        "mcc": 0.4220603281936371,
+        "positives": 39,
+        "samples": 139
+      },
+      "score_tuple": [
+        0.7753846153846154,
+        0.7233333333333334,
+        0.4220603281936371,
+        0.5889017561836548
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_05_label90000_age300000_w45_s8/trial_config.yaml"
+    },
+    {
+      "trial": 6,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 45,
+      "step_seconds": 10,
+      "val": {
+        "auroc": 0.8004434589800443,
+        "pr_auc": 0.5530865483921104,
+        "f1": 0.6363636363636364,
+        "precision": 0.509090909090909,
+        "recall": 0.8484848484848485,
+        "specificity": 0.6707317073170732,
+        "balanced_accuracy": 0.7596082779009609,
+        "mcc": 0.4701705882883618,
+        "positives": 33,
+        "samples": 115
+      },
+      "score_tuple": [
+        0.8004434589800443,
+        0.7596082779009609,
+        0.4701705882883618,
+        0.5530865483921104
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_06_label90000_age300000_w45_s10/trial_config.yaml"
+    },
+    {
+      "trial": 7,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 60,
+      "step_seconds": 6,
+      "val": {
+        "auroc": 0.7954868514570007,
+        "pr_auc": 0.7134715771648374,
+        "f1": 0.7352941176470589,
+        "precision": 0.7246376811594203,
+        "recall": 0.746268656716418,
+        "specificity": 0.7738095238095238,
+        "balanced_accuracy": 0.7600390902629709,
+        "mcc": 0.518697561736443,
+        "positives": 67,
+        "samples": 151
+      },
+      "score_tuple": [
+        0.7954868514570007,
+        0.7600390902629709,
+        0.518697561736443,
+        0.7134715771648374
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_07_label90000_age300000_w60_s6/trial_config.yaml"
+    },
+    {
+      "trial": 8,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 60,
+      "step_seconds": 8,
+      "val": {
+        "auroc": 0.8170072115384615,
+        "pr_auc": 0.842520975878661,
+        "f1": 0.7586206896551724,
+        "precision": 0.9428571428571428,
+        "recall": 0.6346153846153846,
+        "specificity": 0.96875,
+        "balanced_accuracy": 0.8016826923076923,
+        "mcc": 0.6537256386975686,
+        "positives": 52,
+        "samples": 116
+      },
+      "score_tuple": [
+        0.8170072115384615,
+        0.8016826923076923,
+        0.6537256386975686,
+        0.842520975878661
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_08_label90000_age300000_w60_s8/trial_config.yaml"
+    },
+    {
+      "trial": 9,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 300000,
+      "window_seconds": 60,
+      "step_seconds": 10,
+      "val": {
+        "auroc": 0.8034146341463414,
+        "pr_auc": 0.8151774246895089,
+        "f1": 0.7126436781609196,
+        "precision": 0.6739130434782609,
+        "recall": 0.7560975609756098,
+        "specificity": 0.7,
+        "balanced_accuracy": 0.7280487804878049,
+        "mcc": 0.4538888430992211,
+        "positives": 41,
+        "samples": 91
+      },
+      "score_tuple": [
+        0.8034146341463414,
+        0.7280487804878049,
+        0.4538888430992211,
+        0.8151774246895089
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_09_label90000_age300000_w60_s10/trial_config.yaml"
+    },
+    {
+      "trial": 10,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 30,
+      "step_seconds": 6,
+      "val": {
+        "auroc": 0.7512307692307693,
+        "pr_auc": 0.5743908577087736,
+        "f1": 0.6,
+        "precision": 0.625,
+        "recall": 0.5769230769230769,
+        "specificity": 0.856,
+        "balanced_accuracy": 0.7164615384615385,
+        "mcc": 0.44355955688147947,
+        "positives": 52,
+        "samples": 177
+      },
+      "score_tuple": [
+        0.7512307692307693,
+        0.7164615384615385,
+        0.44355955688147947,
+        0.5743908577087736
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_10_label90000_age600000_w30_s6/trial_config.yaml"
+    },
+    {
+      "trial": 11,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 30,
+      "step_seconds": 8,
+      "val": {
+        "auroc": 0.710812356979405,
+        "pr_auc": 0.45988733319048397,
+        "f1": 0.5901639344262295,
+        "precision": 0.42857142857142855,
+        "recall": 0.9473684210526315,
+        "specificity": 0.4782608695652174,
+        "balanced_accuracy": 0.7128146453089245,
+        "mcc": 0.4048542105384659,
+        "positives": 38,
+        "samples": 130
+      },
+      "score_tuple": [
+        0.710812356979405,
+        0.7128146453089245,
+        0.4048542105384659,
+        0.45988733319048397
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_11_label90000_age600000_w30_s8/trial_config.yaml"
+    },
+    {
+      "trial": 12,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 30,
+      "step_seconds": 10,
+      "val": {
+        "auroc": 0.7153716216216216,
+        "pr_auc": 0.554811856387825,
+        "f1": 0.5535714285714286,
+        "precision": 0.3875,
+        "recall": 0.96875,
+        "specificity": 0.33783783783783783,
+        "balanced_accuracy": 0.6532939189189189,
+        "mcc": 0.32712527760068044,
+        "positives": 32,
+        "samples": 106
+      },
+      "score_tuple": [
+        0.7153716216216216,
+        0.6532939189189189,
+        0.32712527760068044,
+        0.554811856387825
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_12_label90000_age600000_w30_s10/trial_config.yaml"
+    },
+    {
+      "trial": 13,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 45,
+      "step_seconds": 6,
+      "val": {
+        "auroc": 0.8263324610935133,
+        "pr_auc": 0.592412271620171,
+        "f1": 0.6962962962962963,
+        "precision": 0.573170731707317,
+        "recall": 0.8867924528301887,
+        "specificity": 0.7445255474452555,
+        "balanced_accuracy": 0.8156590001377221,
+        "mcc": 0.571646549819337,
+        "positives": 53,
+        "samples": 190
+      },
+      "score_tuple": [
+        0.8263324610935133,
+        0.8156590001377221,
+        0.571646549819337,
+        0.592412271620171
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_13_label90000_age600000_w45_s6/trial_config.yaml"
+    },
+    {
+      "trial": 14,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 45,
+      "step_seconds": 8,
+      "val": {
+        "auroc": 0.7338461538461538,
+        "pr_auc": 0.4885682578056707,
+        "f1": 0.5740740740740741,
+        "precision": 0.4492753623188406,
+        "recall": 0.7948717948717948,
+        "specificity": 0.62,
+        "balanced_accuracy": 0.7074358974358974,
+        "mcc": 0.3727972056533873,
+        "positives": 39,
+        "samples": 139
+      },
+      "score_tuple": [
+        0.7338461538461538,
+        0.7074358974358974,
+        0.3727972056533873,
+        0.4885682578056707
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_14_label90000_age600000_w45_s8/trial_config.yaml"
+    },
+    {
+      "trial": 15,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 45,
+      "step_seconds": 10,
+      "val": {
+        "auroc": 0.8396156688839616,
+        "pr_auc": 0.6473103858919322,
+        "f1": 0.7160493827160493,
+        "precision": 0.6041666666666666,
+        "recall": 0.8787878787878788,
+        "specificity": 0.7682926829268293,
+        "balanced_accuracy": 0.823540280857354,
+        "mcc": 0.5935594584451656,
+        "positives": 33,
+        "samples": 115
+      },
+      "score_tuple": [
+        0.8396156688839616,
+        0.823540280857354,
+        0.5935594584451656,
+        0.6473103858919322
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_15_label90000_age600000_w45_s10/trial_config.yaml"
+    },
+    {
+      "trial": 16,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 60,
+      "step_seconds": 6,
+      "val": {
+        "auroc": 0.8343994314143568,
+        "pr_auc": 0.8456067589863525,
+        "f1": 0.8,
+        "precision": 0.8253968253968254,
+        "recall": 0.7761194029850746,
+        "specificity": 0.8690476190476191,
+        "balanced_accuracy": 0.8225835110163469,
+        "mcc": 0.6500362761828478,
+        "positives": 67,
+        "samples": 151
+      },
+      "score_tuple": [
+        0.8343994314143568,
+        0.8225835110163469,
+        0.6500362761828478,
+        0.8456067589863525
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_16_label90000_age600000_w60_s6/trial_config.yaml"
+    },
+    {
+      "trial": 17,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 60,
+      "step_seconds": 8,
+      "val": {
+        "auroc": 0.772235576923077,
+        "pr_auc": 0.7950251495082917,
+        "f1": 0.6666666666666666,
+        "precision": 0.8285714285714286,
+        "recall": 0.5576923076923077,
+        "specificity": 0.90625,
+        "balanced_accuracy": 0.7319711538461539,
+        "mcc": 0.5026655309507201,
+        "positives": 52,
+        "samples": 116
+      },
+      "score_tuple": [
+        0.772235576923077,
+        0.7319711538461539,
+        0.5026655309507201,
+        0.7950251495082917
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_17_label90000_age600000_w60_s8/trial_config.yaml"
+    },
+    {
+      "trial": 18,
+      "label_match_window_ms": 90000,
+      "max_label_age_ms": 600000,
+      "window_seconds": 60,
+      "step_seconds": 10,
+      "val": {
+        "auroc": 0.7951219512195121,
+        "pr_auc": 0.8190882349620204,
+        "f1": 0.735632183908046,
+        "precision": 0.6956521739130435,
+        "recall": 0.7804878048780488,
+        "specificity": 0.72,
+        "balanced_accuracy": 0.7502439024390244,
+        "mcc": 0.49806412087679236,
+        "positives": 41,
+        "samples": 91
+      },
+      "score_tuple": [
+        0.7951219512195121,
+        0.7502439024390244,
+        0.49806412087679236,
+        0.8190882349620204
+      ],
+      "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_18_label90000_age600000_w60_s10/trial_config.yaml"
+    }
+  ],
+  "best": {
+    "trial": 15,
+    "label_match_window_ms": 90000,
+    "max_label_age_ms": 600000,
+    "window_seconds": 45,
+    "step_seconds": 10,
+    "val": {
+      "auroc": 0.8396156688839616,
+      "pr_auc": 0.6473103858919322,
+      "f1": 0.7160493827160493,
+      "precision": 0.6041666666666666,
+      "recall": 0.8787878787878788,
+      "specificity": 0.7682926829268293,
+      "balanced_accuracy": 0.823540280857354,
+      "mcc": 0.5935594584451656,
+      "positives": 33,
+      "samples": 115
+    },
+    "score_tuple": [
+      0.8396156688839616,
+      0.823540280857354,
+      0.5935594584451656,
+      0.6473103858919322
+    ],
+    "trial_config": "/Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_15_label90000_age600000_w45_s10/trial_config.yaml"
+  }
+}

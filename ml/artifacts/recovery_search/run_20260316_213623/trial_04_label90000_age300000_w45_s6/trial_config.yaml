@@ -1,0 +1,120 @@
+dataset:
+  raw_dir: ml/data/raw/bemotion-dataset
+  prepared_csv: /Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_04_label90000_age300000_w45_s6/prepared/stress_windows.csv
+  feature_columns_json: /Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_04_label90000_age300000_w45_s6/prepared/feature_columns.json
+  test_size: 0.2
+  validation_size: 0.1
+  random_seed: 42
+windowing:
+  window_seconds: 45
+  step_seconds: 6
+columns:
+  timestamp:
+  - timestamp
+  - time
+  - time_ms
+  - unix_ms
+  subject:
+  - subject
+  - subject_id
+  - participant
+  - user_id
+  heart_rate:
+  - heart_rate
+  - hr
+  - bpm
+  - heartrate
+  label:
+  - stress
+  - label
+  - target
+  - is_stressed
+  - arousal
+  accel_x:
+  - acc_x
+  - accelerometer_x
+  - accel_x
+  accel_y:
+  - acc_y
+  - accelerometer_y
+  - accel_y
+  accel_z:
+  - acc_z
+  - accelerometer_z
+  - accel_z
+  motion:
+  - motion_magnitude
+  - motion
+  temperature:
+  - temperature
+  - ambient_temperature
+  - skin_temp
+  - temp_c
+training:
+  positive_label_values:
+  - 1
+  - '1'
+  - stress
+  - stressed
+  - high
+  - very_high
+  ignored_label_values:
+  - none
+  - unknown
+  - nan
+  - ''
+  - medium
+  max_label_age_ms: 300000
+  label_match_window_ms: 90000
+  sensor_alignment_tolerance_ms: 2000
+  selection_metric_priority:
+  - auroc
+  - balanced_accuracy
+  - mcc
+  - pr_auc
+  min_windows: 200
+  hidden_units:
+  - 96
+  - 48
+  activation: relu
+  batch_norm: true
+  l2_kernel: 0.0001
+  use_focal: false
+  focal_gamma: 2.0
+  focal_alpha: 0.25
+  dropout: 0.1
+  learning_rate: 0.0005
+  epochs: 24
+  batch_size: 256
+  early_stopping_patience: 4
+  search_hidden_units:
+  - - 96
+    - 48
+  - - 128
+    - 64
+    - 32
+  search_dropout:
+  - 0.1
+  search_learning_rate:
+  - 0.001
+  - 0.0005
+  search_activation:
+  - relu
+  - gelu
+  search_batch_norm:
+  - true
+  search_l2:
+  - 0.0001
+  search_use_focal:
+  - false
+  search_focal_gamma:
+  - 2.0
+  search_focal_alpha:
+  - 0.25
+  search_seeds:
+  - 42
+export:
+  model_bundle_path: /Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_04_label90000_age300000_w45_s6/checkpoints/stress_bundle.joblib
+  keras_model_path: /Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_04_label90000_age300000_w45_s6/export/stress_model.keras
+  tflite_path: /Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_04_label90000_age300000_w45_s6/export/stress_model.tflite
+  metadata_path: /Users/inagege/Documents/00_Uni/Practical_Seminar/PulseBreak/ml/artifacts/recovery_search/run_20260316_213623/trial_04_label90000_age300000_w45_s6/export/model_metadata.json

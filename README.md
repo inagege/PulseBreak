@@ -25,11 +25,11 @@ Quick setup (clone from git)
 ---------------------------
 1. Clone the repository (HTTPS):
 
-   git clone https://github.com/<your-org>/PulseBreak.git
+   git clone https://github.com/inagege/PulseBreak.git
 
    Or with SSH:
 
-   git clone git@github.com:<your-org>/PulseBreak.git
+   git clone git@github.com:inagege/PulseBreak.git
 
 2. Enter the project directory:
 

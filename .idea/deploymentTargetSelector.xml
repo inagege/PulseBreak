@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="PulseBreak">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-05-11T06:55:21.700336Z">
+        <DropdownSelection timestamp="2026-05-20T16:15:07.071964Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/inagege/.android/avd/Medium_Phone.avd" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/inagege/.android/avd/Wear_OS_Large_Round_API_33.avd" />
             </handle>
           </Target>
         </DropdownSelection>
@@ -18,7 +18,7 @@
       </SelectionState>
       <SelectionState runConfigName="companion">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-05-11T06:55:27.799524Z">
+        <DropdownSelection timestamp="2026-05-20T16:14:27.110117Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=/Users/inagege/.android/avd/Medium_Phone.avd" />

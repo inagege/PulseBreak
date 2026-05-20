@@ -86,23 +86,32 @@ class HeartRateReader(
         sensorManager.unregisterListener(this)
     }
 
-    fun submitStressFeedback(userFeelsStressed: Boolean) {
+    fun submitStressFeedback(feedbackScore: Int) {
         val prediction = pendingPrediction ?: return
         val cfg = feedbackConfigProvider()
+        val normalizedScore = feedbackScore.coerceIn(1, 4)
         feedbackStore.recordFeedback(
             adjustedScore = prediction.adjustedScore,
-            userFeelsStressed = userFeelsStressed,
+            feedbackScore = normalizedScore,
             personalizationEnabled = cfg.personalizationEnabled
         )
         pendingPrediction = null
 
-        if (userFeelsStressed && shouldTriggerNavigation()) {
+        if (normalizedScore >= 3 && shouldTriggerNavigation()) {
             navigateToRecoverySession()
         }
     }
 
     private fun handleHeartRateSample(heartRate: Float) {
         if (heartRate <= 0f) return
+
+        if (pendingPrediction != null) {
+            if (feedbackStore.getPendingPrompt() == null) {
+                pendingPrediction = null
+            } else {
+                return
+            }
+        }
 
         val now = System.currentTimeMillis()
         samples.add(

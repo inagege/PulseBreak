@@ -42,29 +42,35 @@ class StressFeedbackStore(context: Context) {
             .apply()
     }
 
-    fun submitPendingFeedback(userFeelsStressed: Boolean) {
-        val pending = getPendingPrompt() ?: return
+    fun submitPendingFeedback(feedbackScore: Int): Boolean {
+        val pending = getPendingPrompt() ?: return false
+        val normalizedScore = feedbackScore.coerceIn(1, 4)
         recordFeedback(
             adjustedScore = pending.adjustedScore,
-            userFeelsStressed = userFeelsStressed,
+            feedbackScore = normalizedScore,
             personalizationEnabled = pending.personalizationEnabled
         )
         clearPendingPrompt()
+        return normalizedScore >= 3
     }
 
     fun recordFeedback(
         adjustedScore: Float,
-        userFeelsStressed: Boolean,
+        feedbackScore: Int,
         personalizationEnabled: Boolean
     ) {
         val currentBias = getPersonalizationBias()
         val currentCount = getFeedbackCount()
-        val target = if (userFeelsStressed) 1f else 0f
-        val error = (target - adjustedScore).coerceIn(-1f, 1f)
+        val clampedScore = feedbackScore.coerceIn(1, 4)
+        val target = (clampedScore - 1) / 3f
+        val rawError = (target - adjustedScore).coerceIn(-1f, 1f)
+        val error = if (clampedScore >= 3 && rawError < 0f) 0f else rawError
 
         val nextCount = currentCount + 1
         val nextBias = if (personalizationEnabled) {
-            val learningRate = 0.10f / (1f + (currentCount / 25f))
+            val baseLearningRate = 0.10f / (1f + (currentCount / 25f))
+            val weight = if (clampedScore <= 2) 1.6f else 1f
+            val learningRate = baseLearningRate * weight
             (currentBias + (learningRate * error)).coerceIn(-0.25f, 0.25f)
         } else {
             currentBias

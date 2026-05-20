@@ -56,8 +56,9 @@ fun DefaultScreen(
                     adjustedScore = prediction.adjustedScore,
                     personalizationEnabled = latestSettings.personalizationEnabled
                 )
+                try { onNavigateToHome() } catch (_: Exception) {}
             },
-            autoNavigateOnFeedbackPrompt = true,
+            autoNavigateOnFeedbackPrompt = false,
             settingsProvider = { latestSettings },
             onNavigateToHome = {
                 try { onNavigateToHome() } catch (_: Exception) {}

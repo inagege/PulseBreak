@@ -19,9 +19,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.breakreminder.sync.AppSettingsViewModel
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Modifier
 import com.example.commonlibrary.SettingsData
 import com.example.breakreminder.background.BreakMonitoringService
+import com.example.breakreminder.background.BreakNotificationHelper
+import com.example.breakreminder.background.BreakSessionStateStore
+import com.example.breakreminder.HeartRateReader
 import com.example.breakreminder.stress.StressFeedbackStore
+import com.example.commonlibrary.WearSyncHelper
+import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreen(
@@ -33,6 +39,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val feedbackStore = remember(context) { StressFeedbackStore(context) }
     var pendingFeedback by remember { mutableStateOf<StressFeedbackStore.PendingStressFeedback?>(null) }
+    var feedbackScore by remember { mutableStateOf(3) }
 
     // Reset stopwatch to zero when this screen appears
     LaunchedEffect(Unit) {
@@ -42,10 +49,36 @@ fun HomeScreen(
         pendingFeedback = feedbackStore.getPendingPrompt()
     }
 
+    LaunchedEffect(pendingFeedback) {
+        if (pendingFeedback != null) {
+            feedbackScore = 3
+        }
+    }
+
     val settings by viewModel.settings.collectAsState(initial = SettingsData())
 
     val buttonColor = runCatching { Color(settings.buttonColor) }.getOrElse { Color(0xFF90EE90) }
     val buttonTextColor = runCatching { Color(settings.buttonTextColor) }.getOrElse { Color(0xFF2F4F4F) }
+
+    fun startStressBreak() {
+        try {
+            WearSyncHelper.sendSettings(
+                context = context,
+                settings = settings,
+                includeSchedule = false,
+                includeHue = true
+            )
+        } catch (_: Exception) {
+        }
+        try {
+            BreakSessionStateStore.markSessionStarted(context)
+        } catch (_: Exception) {
+        }
+        try {
+            WearSyncHelper.sendSessionState(context, true)
+        } catch (_: Exception) {
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -86,7 +119,7 @@ fun HomeScreen(
                 color = if (settings.isDarkMode) buttonColor else buttonTextColor
             )
             Spacer(modifier = Modifier.height(26.dp))
-
+            
             pendingFeedback?.let {
                 Surface(
                     shape = MaterialTheme.shapes.large,
@@ -100,27 +133,52 @@ fun HomeScreen(
                         modifier = Modifier.padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Button(
-                            onClick = {
-                                feedbackStore.submitPendingFeedback(userFeelsStressed = true)
-                                pendingFeedback = null
+                        Text(
+                            text = "How stressed do you feel?",
+                            fontSize = 18.sp,
+                            color = if (settings.isDarkMode) buttonColor else buttonTextColor
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Slider(
+                            value = feedbackScore.toFloat(),
+                            onValueChange = { value ->
+                                feedbackScore = value.roundToInt().coerceIn(1, 4)
                             },
+                            valueRange = 1f..4f,
+                            steps = 2,
+                        )
+
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = buttonColor,
-                                contentColor = buttonTextColor
-                            )
+                            horizontalAlignment = Alignment.Start
                         ) {
-                            Text("Yes, good idea")
+                            Text(
+                                "1 Not stressed",
+                                fontSize = 12.sp,
+                                color = if (settings.isDarkMode) buttonColor else buttonTextColor
+                            )
+                            Text(
+                                "4 Very stressed",
+                                fontSize = 12.sp,
+                                color = if (settings.isDarkMode) buttonColor else buttonTextColor
+                            )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Button(
                             onClick = {
-                                feedbackStore.submitPendingFeedback(userFeelsStressed = false)
+                                val shouldStartBreak = feedbackStore.submitPendingFeedback(feedbackScore)
+                                BreakNotificationHelper.dismissStressFeedbackPrompt(context)
                                 pendingFeedback = null
-                                onReturnToMonitoring()
+                                if (shouldStartBreak) {
+                                    startStressBreak()
+                                } else {
+                                    HeartRateReader.sendHueRestoreMessage(context)
+                                    onReturnToMonitoring()
+                                }
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
@@ -128,26 +186,7 @@ fun HomeScreen(
                                 contentColor = buttonTextColor
                             )
                         ) {
-                            Text("No, not stressed")
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Button(
-                            onClick = {
-                                // "No, no time" still indicates stress in most cases,
-                                // but user cannot take a break now.
-                                feedbackStore.submitPendingFeedback(userFeelsStressed = true)
-                                pendingFeedback = null
-                                onReturnToMonitoring()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = buttonColor,
-                                contentColor = buttonTextColor
-                            )
-                        ) {
-                            Text("No, no time")
+                            Text("Submit")
                         }
                     }
                 }

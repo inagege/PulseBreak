@@ -109,12 +109,14 @@ class BreakMonitoringService : Service() {
                     )
                 } catch (_: Exception) {
                 }
-                BreakNotificationHelper.showBreakStartNotification(
+                BreakNotificationHelper.showStressFeedbackPrompt(
                     context = applicationContext,
-                    cause = BreakCause.STRESS
+                    adjustedScore = prediction.adjustedScore,
+                    personalizationEnabled = currentSettings.personalizationEnabled,
+                    usedSignals = prediction.usedSignals
                 )
             },
-            autoNavigateOnFeedbackPrompt = true,
+            autoNavigateOnFeedbackPrompt = false,
             settingsProvider = { currentSettings },
             onNavigateToHome = {
                 // Session state + alert are sent by HeartRateReader; here we additionally

@@ -19,16 +19,16 @@ class StressFeedbackActionReceiver : BroadcastReceiver() {
             true
         )
 
-        val userFeelsStressed = when (action) {
-            BreakNotificationHelper.ACTION_FEEDBACK_YES -> true
-            BreakNotificationHelper.ACTION_FEEDBACK_NO -> false
+        val feedbackScore = when (action) {
+            BreakNotificationHelper.ACTION_FEEDBACK_YES -> 4
+            BreakNotificationHelper.ACTION_FEEDBACK_NO -> 1
             else -> return
         }
 
         try {
             StressFeedbackStore(context).recordFeedback(
                 adjustedScore = adjustedScore,
-                userFeelsStressed = userFeelsStressed,
+                feedbackScore = feedbackScore,
                 personalizationEnabled = personalizationEnabled
             )
         } catch (e: Exception) {

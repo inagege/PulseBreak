@@ -120,38 +120,14 @@ object BreakNotificationHelper {
         ensureChannels(context)
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
 
-        val yesIntent = Intent(context, StressFeedbackActionReceiver::class.java).apply {
-            action = ACTION_FEEDBACK_YES
-            putExtra(EXTRA_FEEDBACK_SCORE, adjustedScore)
-            putExtra(EXTRA_PERSONALIZATION_ENABLED, personalizationEnabled)
-        }
-        val noIntent = Intent(context, StressFeedbackActionReceiver::class.java).apply {
-            action = ACTION_FEEDBACK_NO
-            putExtra(EXTRA_FEEDBACK_SCORE, adjustedScore)
-            putExtra(EXTRA_PERSONALIZATION_ENABLED, personalizationEnabled)
-        }
-
-        val yesPending = PendingIntent.getBroadcast(
-            context,
-            FEEDBACK_NOTIFICATION_ID + 1,
-            yesIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val noPending = PendingIntent.getBroadcast(
-            context,
-            FEEDBACK_NOTIFICATION_ID + 2,
-            noIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val tapIntent = openAppPendingIntent(context, openBreakStart = true)
 
         val signalSummary = if (usedSignals.isEmpty()) "" else " Signals: ${usedSignals.joinToString()}."
         val body = if (signalSummary.isEmpty()) {
-            "Pause started. Do you currently feel stressed?"
+            "How stressed do you feel? Tap to rate from 1 to 4."
         } else {
-            "Pause started. Do you currently feel stressed?$signalSummary"
+            "How stressed do you feel? Tap to rate from 1 to 4.$signalSummary"
         }
-
-        val tapIntent = openAppPendingIntent(context, openBreakStart = true)
 
         val notification = Notification.Builder(context, FEEDBACK_CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -162,8 +138,6 @@ object BreakNotificationHelper {
             .setCategory(Notification.CATEGORY_REMINDER)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
-            .addAction(Notification.Action.Builder(null, "Yes", yesPending).build())
-            .addAction(Notification.Action.Builder(null, "No", noPending).build())
             .build()
 
         manager.notify(FEEDBACK_NOTIFICATION_ID, notification)
